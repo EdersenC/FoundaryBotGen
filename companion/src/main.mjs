@@ -1,10 +1,12 @@
 import { readConfig } from "./config.mjs";
+import { loadCompanionEnvironment } from "./environment-file.mjs";
 import { GenerationJobQueue } from "./job-queue.mjs";
 import { createCompanionLogger } from "./logger.mjs";
 import { NpcGenerator } from "./npc-generator.mjs";
 import { OllamaProvider } from "./ollama-provider.mjs";
 import { createCompanionServer } from "./server.mjs";
 
+const environmentFile = await loadCompanionEnvironment();
 const config = readConfig();
 const logger = createCompanionLogger();
 const provider = new OllamaProvider({
@@ -16,6 +18,10 @@ const generator = new NpcGenerator({ provider });
 const jobQueue = new GenerationJobQueue({ generator, logger });
 const server = createCompanionServer({ config, jobQueue, logger: console });
 
+logger.event("info", "companion.configuration.loaded", {
+  environmentFileLoaded: environmentFile.loaded,
+  environmentFileKeysApplied: environmentFile.appliedKeys.length,
+});
 await listen(server, config.host, config.port);
 logger.event("info", "companion.started", {
   endpoint: `http://${config.host}:${config.port}`,
