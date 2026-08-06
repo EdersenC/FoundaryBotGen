@@ -1,0 +1,140 @@
+{
+  "foundry-npcbot": {
+    "controls": {
+      "openGenerator": "Open NPC Generator",
+      "detail": "Detail",
+      "socialDiversity": "Social Diversity",
+      "interconnectedness": "Interconnectedness",
+      "familyDepth": "Family Depth",
+      "eccentricity": "Eccentricity",
+      "danger": "Danger",
+      "magic": "Magic"
+    },
+    "generator": {
+      "title": "NPC Generator",
+      "activeScene": "Active Scene",
+      "regionLegend": "Region Context",
+      "region": "Scene Region (optional)",
+      "wholeScene": "Whole Scene",
+      "noRegions": "This Scene has no configured Scene Regions. Generation will use the whole Scene.",
+      "regionDescription": "Regional description",
+      "prompt": "Generation prompt",
+      "npcCount": "NPC count",
+      "controlsLegend": "Generation Controls",
+      "generate": "Generate NPC Drafts",
+      "generating": "Generating NPCs",
+      "cancel": "Cancel Generation"
+    },
+    "connection": {
+      "checking": "Checking companion",
+      "ready": "Companion ready",
+      "degraded": "Companion needs attention",
+      "unreachable": "Companion unreachable",
+      "checkingMessage": "Checking the companion, bearer token, Ollama, and configured model.",
+      "readyMessage": "{model} is available. Output mode: {outputMode}.",
+      "degradedMessage": "The companion answered, but Ollama or the configured model is not ready.",
+      "unreachableMessage": "The companion could not be reached.",
+      "modelMissingMessage": "Ollama is running, but {model} is not installed.",
+      "jsonSchema": "JSON Schema",
+      "jsonFallback": "compatible JSON fallback",
+      "endpoint": "Endpoint",
+      "queue": "Queue: {active} active, {pending} waiting",
+      "checkAgain": "Check Again"
+    },
+    "diagnostics": {
+      "title": "Live Activity",
+      "updated": "Last update: {time}",
+      "jobId": "Job ID",
+      "empty": "Waiting for the companion to report activity."
+    },
+    "review": {
+      "title": "Review NPC Drafts",
+      "hint": "Edit generated text, uncheck any NPC you do not want, then create ordinary D&D5e NPC Actors.",
+      "approveNpc": "Approve this NPC",
+      "name": "Actor name",
+      "tokenLabel": "Token label",
+      "socialRole": "Social role",
+      "occupation": "Occupation",
+      "appearance": "Appearance",
+      "personalityTraits": "Personality traits (one per line)",
+      "ideal": "Ideal",
+      "bond": "Bond",
+      "flaw": "Flaw",
+      "mannerisms": "Mannerisms (one per line)",
+      "motivations": "Motivations (one per line)",
+      "publicBiography": "Public biography",
+      "gmSecret": "GM secret",
+      "complication": "Complication",
+      "faction": "Faction",
+      "family": "Generated family structure",
+      "discard": "Discard Drafts",
+      "createAndPlace": "Approve, Create, and Place"
+    },
+    "created": {
+      "title": "NPC Actors Created",
+      "placed": "Tokens placed:",
+      "generateMore": "Generate More",
+      "placeAgain": "Place These Actors Again"
+    },
+    "jobStatus": {
+      "queued": "Queued",
+      "running": "Running",
+      "succeeded": "Complete",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    },
+    "settings": {
+      "menu": {
+        "name": "NPCBOT Settings",
+        "label": "Configure NPCBOT",
+        "hint": "Configure the local companion and world generation defaults."
+      },
+      "companionLegend": "Local Companion",
+      "defaultsLegend": "World Generation Defaults",
+      "companionEndpoint": {
+        "name": "Companion endpoint",
+        "hint": "HTTP or HTTPS base URL for the paired local NPC generation companion."
+      },
+      "pairingToken": {
+        "name": "Bearer pairing token",
+        "hint": "Stored only in this browser's client settings and sent as a Bearer credential."
+      },
+      "generationDefaults": {
+        "name": "Generation defaults",
+        "hint": "Default NPC count and control values for this World."
+      },
+      "save": "Save Settings"
+    },
+    "notifications": {
+      "settingsSaved": "NPCBOT settings saved.",
+      "folderSkipped": "NPCs will be created without a scene-linked folder.",
+      "tokensPlaced": "Placed {count} NPC token(s)."
+    },
+    "errors": {
+      "gamemasterOnly": "Only a full Gamemaster can use NPCBOT.",
+      "dnd5eOnly": "NPCBOT requires the Dungeons & Dragons Fifth Edition system.",
+      "sceneRequired": "Open a Scene before using NPCBOT.",
+      "sceneChanged": "The active Scene changed. Reopen NPCBOT from the Scene you want to populate.",
+      "createPermission": "You do not have permission to create Actors and Tokens.",
+      "scenePermission": "You cannot modify the active Scene.",
+      "pairingTokenRequired": "Configure a companion pairing token first.",
+      "pairingTokenTooShort": "The companion pairing token must contain at least 16 characters.",
+      "promptRequired": "Enter a generation prompt.",
+      "generationFailed": "NPC generation failed.",
+      "failureTitle": "Generation could not finish",
+      "errorCode": "Error code",
+      "jobId": "Job ID",
+      "retryable": "This failure is safe to retry.",
+      "timeoutSuggestion": "Try one NPC first, or increase NPCBOT_REQUEST_TIMEOUT_MS and restart the companion.",
+      "unavailableSuggestion": "Confirm Ollama and the companion are both still running, then use Check Again.",
+      "ollamaSuggestion": "Check the companion terminal for the Ollama response. NPCBOT will automatically bypass unsupported schema grammars.",
+      "modelOutputSuggestion": "Try again with one NPC and a simpler prompt; the model could not satisfy the NPC contract after repair.",
+      "defaultSuggestion": "Review Live Activity below, correct the reported problem, and try again.",
+      "noApprovedNpcs": "Approve at least one NPC draft.",
+      "actorCreationIncomplete": "Foundry did not create every approved NPC Actor.",
+      "noCreatedActors": "There are no created NPC Actors to place.",
+      "interactivePlacementUnavailable": "Interactive token placement requires Foundry VTT 14.356 or newer.",
+      "unexpected": "An unexpected NPCBOT error occurred."
+    }
+  }
+}

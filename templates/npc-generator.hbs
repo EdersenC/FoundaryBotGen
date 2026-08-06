@@ -1,0 +1,190 @@
+<section class="npcbot-generator">
+  <header class="npcbot-generator__scene">
+    <i class="fa-solid fa-map"></i>
+    <div>
+      <span>{{localize "foundry-npcbot.generator.activeScene"}}</span>
+      <strong>{{scene.name}}</strong>
+    </div>
+  </header>
+
+  <section class="npcbot-connection npcbot-connection--{{connection.state}}" aria-live="polite">
+    <header>
+      <i class="{{connection.icon}}"></i>
+      <strong>{{connection.label}}</strong>
+      <button type="button" class="npcbot-connection__refresh" data-action="checkConnection" {{#if connection.isChecking}}disabled{{/if}}>
+        <i class="fa-solid fa-rotate"></i>
+        {{localize "foundry-npcbot.connection.checkAgain"}}
+      </button>
+    </header>
+    <p>{{connection.message}}</p>
+    <div class="npcbot-connection__metadata">
+      <span>{{localize "foundry-npcbot.connection.endpoint"}}: <code>{{connection.endpoint}}</code></span>
+      {{#if connection.queue}}
+        <span>Queue: {{connection.queue.active}} active, {{connection.queue.pending}} waiting</span>
+      {{/if}}
+    </div>
+  </section>
+
+  {{#if error}}
+    <div class="npcbot-callout npcbot-callout--error" role="alert">
+      <h3><i class="fa-solid fa-triangle-exclamation"></i> {{localize "foundry-npcbot.errors.failureTitle"}}</h3>
+      <p>{{error.message}}</p>
+      <dl class="npcbot-error-details">
+        {{#if error.code}}<dt>{{localize "foundry-npcbot.errors.errorCode"}}</dt><dd><code>{{error.code}}</code></dd>{{/if}}
+        {{#if error.jobId}}<dt>{{localize "foundry-npcbot.errors.jobId"}}</dt><dd><code>{{error.jobId}}</code></dd>{{/if}}
+      </dl>
+      {{#if error.retryable}}<p><i class="fa-solid fa-rotate"></i> {{localize "foundry-npcbot.errors.retryable"}}</p>{{/if}}
+      <p><strong>Next step:</strong> {{error.suggestion}}</p>
+    </div>
+  {{/if}}
+
+  {{#if diagnostics}}
+    <details class="npcbot-activity" {{#if diagnostics.expanded}}open{{/if}}>
+      <summary><i class="fa-solid fa-list-check"></i> {{localize "foundry-npcbot.diagnostics.title"}}</summary>
+      <div class="npcbot-activity__metadata">
+        <span>{{localize "foundry-npcbot.diagnostics.jobId"}}: <code>{{diagnostics.jobId}}</code></span>
+        {{#if diagnostics.updatedAt}}<span>Last update: {{diagnostics.updatedAt}}</span>{{/if}}
+      </div>
+      {{#if diagnostics.events}}
+        <ol class="npcbot-activity__events">
+          {{#each diagnostics.events}}
+            <li class="npcbot-activity__event npcbot-activity__event--{{level}}">
+              <time>{{timestamp}}</time>
+              <code>{{code}}</code>
+              <span>{{message}}</span>
+            </li>
+          {{/each}}
+        </ol>
+      {{else}}
+        <p class="hint">{{localize "foundry-npcbot.diagnostics.empty"}}</p>
+      {{/if}}
+    </details>
+  {{/if}}
+
+  {{#if isConfigure}}
+    <div class="npcbot-stack">
+      <fieldset>
+        <legend>{{localize "foundry-npcbot.generator.regionLegend"}}</legend>
+        <label class="npcbot-field">
+          <span>{{localize "foundry-npcbot.generator.region"}}</span>
+          <select name="regionId">
+            <option value="">{{localize "foundry-npcbot.generator.wholeScene"}}</option>
+            {{#each regions}}
+              <option value="{{id}}" {{#if selected}}selected{{/if}}>{{name}}</option>
+            {{/each}}
+          </select>
+        </label>
+        {{#unless hasRegions}}
+          <p class="hint">{{localize "foundry-npcbot.generator.noRegions"}}</p>
+        {{/unless}}
+        <label class="npcbot-field">
+          <span>{{localize "foundry-npcbot.generator.regionDescription"}}</span>
+          <textarea name="regionDescription" rows="4" maxlength="{{limits.regionDescription}}">{{configuration.regionDescription}}</textarea>
+        </label>
+        <label class="npcbot-field">
+          <span>{{localize "foundry-npcbot.generator.prompt"}}</span>
+          <textarea name="prompt" rows="5" maxlength="{{limits.prompt}}" required>{{configuration.prompt}}</textarea>
+        </label>
+        <label class="npcbot-field npcbot-field--compact">
+          <span>{{localize "foundry-npcbot.generator.npcCount"}}</span>
+          <input type="number" name="count" value="{{configuration.count}}" min="{{countRange.min}}" max="{{countRange.max}}" step="1" required>
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>{{localize "foundry-npcbot.generator.controlsLegend"}}</legend>
+        <div class="npcbot-sliders">
+          {{#each controls}}
+            <label class="npcbot-slider">
+              <span>{{label}}</span>
+              <input type="range" name="controls.{{key}}" value="{{value}}" min="{{min}}" max="{{max}}" step="{{step}}">
+              <output>{{value}}</output>
+            </label>
+          {{/each}}
+        </div>
+      </fieldset>
+    </div>
+    <footer class="npcbot-actions">
+      <button type="button" data-action="queue" {{#if isBusy}}disabled{{/if}}>
+        <i class="fa-solid fa-wand-magic-sparkles"></i>
+        {{localize "foundry-npcbot.generator.generate"}}
+      </button>
+    </footer>
+  {{/if}}
+
+  {{#if isPolling}}
+    <section class="npcbot-job" aria-live="polite">
+      <i class="fa-solid fa-spinner fa-spin"></i>
+      <h2>{{localize "foundry-npcbot.generator.generating"}}</h2>
+      <p>{{job.status}} — {{job.progress.completed}} / {{job.progress.total}}</p>
+      {{#if job.activity}}<p class="npcbot-job__activity">{{job.activity}}</p>{{/if}}
+      <progress value="{{job.progress.completed}}" max="{{job.progress.total}}">{{job.progress.percent}}%</progress>
+      <code>{{job.id}}</code>
+      <button type="button" class="npcbot-danger" data-action="cancel" {{#if isBusy}}disabled{{/if}}>
+        <i class="fa-solid fa-ban"></i>
+        {{localize "foundry-npcbot.generator.cancel"}}
+      </button>
+    </section>
+  {{/if}}
+
+  {{#if isReview}}
+    <section class="npcbot-review">
+      <header>
+        <h2>{{localize "foundry-npcbot.review.title"}}</h2>
+        <p class="hint">{{localize "foundry-npcbot.review.hint"}}</p>
+      </header>
+      <div class="npcbot-review__list">
+        {{#each drafts}}
+          <article class="npcbot-npc-card">
+            <label class="npcbot-npc-card__include">
+              <input type="checkbox" name="include.{{index}}" checked>
+              {{localize "foundry-npcbot.review.approveNpc"}}
+            </label>
+            <div class="npcbot-grid-two">
+              <label class="npcbot-field"><span>{{localize "foundry-npcbot.review.name"}}</span><input name="npcs.{{index}}.name" value="{{name}}" maxlength="{{../limits.shortText}}" required></label>
+              <label class="npcbot-field"><span>{{localize "foundry-npcbot.review.tokenLabel"}}</span><input name="npcs.{{index}}.tokenLabel" value="{{tokenLabel}}" maxlength="{{../limits.shortText}}" required></label>
+              <label class="npcbot-field"><span>{{localize "foundry-npcbot.review.socialRole"}}</span><input name="npcs.{{index}}.socialRole" value="{{socialRole}}" maxlength="{{../limits.shortText}}" required></label>
+              <label class="npcbot-field"><span>{{localize "foundry-npcbot.review.occupation"}}</span><input name="npcs.{{index}}.occupation" value="{{occupation}}" maxlength="{{../limits.shortText}}" required></label>
+              <label class="npcbot-field"><span>{{localize "foundry-npcbot.review.ideal"}}</span><input name="npcs.{{index}}.ideal" value="{{ideal}}" maxlength="{{../limits.shortText}}" required></label>
+              <label class="npcbot-field"><span>{{localize "foundry-npcbot.review.bond"}}</span><input name="npcs.{{index}}.bond" value="{{bond}}" maxlength="{{../limits.shortText}}" required></label>
+              <label class="npcbot-field"><span>{{localize "foundry-npcbot.review.flaw"}}</span><input name="npcs.{{index}}.flaw" value="{{flaw}}" maxlength="{{../limits.shortText}}" required></label>
+              <label class="npcbot-field"><span>{{localize "foundry-npcbot.review.faction"}}</span><input name="npcs.{{index}}.faction" value="{{faction}}" maxlength="{{../limits.shortText}}"></label>
+            </div>
+            <label class="npcbot-field"><span>{{localize "foundry-npcbot.review.appearance"}}</span><textarea name="npcs.{{index}}.appearance" rows="3" maxlength="{{../limits.mediumText}}" required>{{appearance}}</textarea></label>
+            <label class="npcbot-field"><span>{{localize "foundry-npcbot.review.personalityTraits"}}</span><textarea name="npcs.{{index}}.personalityTraits" rows="3" maxlength="{{../limits.listText}}" required>{{personalityTraits}}</textarea></label>
+            <label class="npcbot-field"><span>{{localize "foundry-npcbot.review.mannerisms"}}</span><textarea name="npcs.{{index}}.mannerisms" rows="3" maxlength="{{../limits.listText}}" required>{{mannerisms}}</textarea></label>
+            <label class="npcbot-field"><span>{{localize "foundry-npcbot.review.motivations"}}</span><textarea name="npcs.{{index}}.motivations" rows="3" maxlength="{{../limits.listText}}" required>{{motivations}}</textarea></label>
+            <label class="npcbot-field"><span>{{localize "foundry-npcbot.review.publicBiography"}}</span><textarea name="npcs.{{index}}.publicBiography" rows="3" maxlength="{{../limits.longText}}" required>{{publicBiography}}</textarea></label>
+            <label class="npcbot-field"><span>{{localize "foundry-npcbot.review.gmSecret"}}</span><textarea name="npcs.{{index}}.gmSecret" rows="3" maxlength="{{../limits.longText}}">{{gmSecret}}</textarea></label>
+            <label class="npcbot-field"><span>{{localize "foundry-npcbot.review.complication"}}</span><textarea name="npcs.{{index}}.complication" rows="3" maxlength="{{../limits.mediumText}}">{{complication}}</textarea></label>
+            {{#if familySummary}}
+              <details>
+                <summary>{{localize "foundry-npcbot.review.family"}}</summary>
+                <pre>{{familySummary}}</pre>
+              </details>
+            {{/if}}
+          </article>
+        {{/each}}
+      </div>
+      <footer class="npcbot-actions">
+        <button type="button" class="npcbot-secondary" data-action="restart" {{#if isBusy}}disabled{{/if}}>{{localize "foundry-npcbot.review.discard"}}</button>
+        <button type="button" data-action="approve" {{#if isBusy}}disabled{{/if}}><i class="fa-solid fa-check"></i> {{localize "foundry-npcbot.review.createAndPlace"}}</button>
+      </footer>
+    </section>
+  {{/if}}
+
+  {{#if isCreated}}
+    <section class="npcbot-created">
+      <i class="fa-solid fa-circle-check"></i>
+      <h2>{{localize "foundry-npcbot.created.title"}}</h2>
+      <ul>
+        {{#each createdActors}}<li>{{name}}</li>{{/each}}
+      </ul>
+      <p>{{localize "foundry-npcbot.created.placed"}} {{placedCount}}</p>
+      <footer class="npcbot-actions">
+        <button type="button" class="npcbot-secondary" data-action="restart" {{#if isBusy}}disabled{{/if}}>{{localize "foundry-npcbot.created.generateMore"}}</button>
+        <button type="button" data-action="place" {{#if isBusy}}disabled{{/if}}><i class="fa-solid fa-location-dot"></i> {{localize "foundry-npcbot.created.placeAgain"}}</button>
+      </footer>
+    </section>
+  {{/if}}
+</section>

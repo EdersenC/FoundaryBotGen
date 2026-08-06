@@ -1,0 +1,34 @@
+<section class="npcbot-settings npcbot-stack">
+  <fieldset>
+    <legend>{{localize "foundry-npcbot.settings.companionLegend"}}</legend>
+    <label class="npcbot-field">
+      <span>{{localize "foundry-npcbot.settings.companionEndpoint.name"}}</span>
+      <input type="url" name="endpoint" value="{{companion.endpoint}}" required autocomplete="url">
+      <small>{{localize "foundry-npcbot.settings.companionEndpoint.hint"}}</small>
+    </label>
+    <label class="npcbot-field">
+      <span>{{localize "foundry-npcbot.settings.pairingToken.name"}}</span>
+      <input type="password" name="pairingToken" value="{{companion.pairingToken}}" required minlength="16" autocomplete="off">
+      <small>{{localize "foundry-npcbot.settings.pairingToken.hint"}}</small>
+    </label>
+  </fieldset>
+  <fieldset>
+    <legend>{{localize "foundry-npcbot.settings.defaultsLegend"}}</legend>
+    <label class="npcbot-field npcbot-field--compact">
+      <span>{{localize "foundry-npcbot.generator.npcCount"}}</span>
+      <input type="number" name="count" value="{{count}}" min="{{countRange.min}}" max="{{countRange.max}}" step="1" required>
+    </label>
+    <div class="npcbot-sliders">
+      {{#each controls}}
+        <label class="npcbot-slider">
+          <span>{{label}}</span>
+          <input type="range" name="controls.{{key}}" value="{{value}}" min="{{min}}" max="{{max}}" step="{{step}}">
+          <output>{{value}}</output>
+        </label>
+      {{/each}}
+    </div>
+  </fieldset>
+  <footer class="npcbot-actions">
+    <button type="button" data-action="save"><i class="fa-solid fa-floppy-disk"></i> {{localize "foundry-npcbot.settings.save"}}</button>
+  </footer>
+</section>

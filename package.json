@@ -1,0 +1,17 @@
+{
+  "name": "foundry-npcbot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Development and validation commands for the Foundry NPCBOT module and local companion.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "companion": "npm --prefix companion start",
+    "test": "node --test",
+    "validate": "node tools/validate-workspace.mjs",
+    "check": "npm run test && npm run validate"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
