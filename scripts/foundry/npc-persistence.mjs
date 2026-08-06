@@ -5,7 +5,15 @@ import {requireNpcMutationAccess} from "./guards.mjs";
 
 const FOLDER_SCENE_FLAG = "sceneId";
 
-export async function createNpcActors({drafts, sceneId, jobId, regionUuid, provenance}) {
+export async function createNpcActors({
+  drafts,
+  sceneId,
+  jobId,
+  regionUuid,
+  provenance,
+  fields,
+  controls,
+}) {
   const scene = requireNpcMutationAccess(sceneId);
   if (!Array.isArray(drafts) || drafts.length === 0) {
     throw new Error(game.i18n.localize(`${MODULE_ID}.errors.noApprovedNpcs`));
@@ -13,12 +21,14 @@ export async function createNpcActors({drafts, sceneId, jobId, regionUuid, prove
 
   const folder = await getOrCreateSceneActorFolder(scene);
   const generation = {
-    schemaVersion: "1",
+    schemaVersion: "2",
     sceneUuid: scene.uuid,
     regionUuid,
     jobId,
     generatedAt: new Date().toISOString(),
     provenance,
+    fields,
+    controls,
   };
   const actorSources = drafts.map((draft) => {
     const source = createActorSource(draft, {

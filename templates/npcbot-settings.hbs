@@ -12,22 +12,88 @@
       <small>{{localize "foundry-npcbot.settings.pairingToken.hint"}}</small>
     </label>
   </fieldset>
+
   <fieldset>
     <legend>{{localize "foundry-npcbot.settings.defaultsLegend"}}</legend>
     <label class="npcbot-field npcbot-field--compact">
       <span>{{localize "foundry-npcbot.generator.npcCount"}}</span>
       <input type="number" name="count" value="{{count}}" min="{{countRange.min}}" max="{{countRange.max}}" step="1" required>
     </label>
-    <div class="npcbot-sliders">
-      {{#each controls}}
-        <label class="npcbot-slider">
-          <span>{{label}}</span>
-          <input type="range" name="controls.{{key}}" value="{{value}}" min="{{min}}" max="{{max}}" step="{{step}}">
-          <output>{{value}}</output>
-        </label>
+  </fieldset>
+
+  <fieldset>
+    <legend>{{localize "foundry-npcbot.definitions.fieldsLegend"}}</legend>
+    <p class="hint">{{localize "foundry-npcbot.definitions.fieldsHint"}}</p>
+    <div class="npcbot-definitions">
+      {{#each fields}}
+        <article class="npcbot-definition">
+          <input type="hidden" name="fields.{{index}}.id" value="{{id}}">
+          <label class="npcbot-field">
+            <span>{{localize "foundry-npcbot.definitions.label"}}</span>
+            <input name="fields.{{index}}.label" value="{{label}}" maxlength="{{../limits.definitionLabel}}" required>
+          </label>
+          <label class="npcbot-field">
+            <span>{{localize "foundry-npcbot.definitions.description"}}</span>
+            <textarea name="fields.{{index}}.description" rows="2" maxlength="{{../limits.definitionDescription}}" required>{{description}}</textarea>
+          </label>
+          <button type="button" class="npcbot-icon-button npcbot-danger" data-action="removeField" data-index="{{index}}" title="{{localize 'foundry-npcbot.definitions.removeField'}}" {{#if @first}}{{#if @last}}disabled{{/if}}{{/if}}>
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        </article>
       {{/each}}
     </div>
+    <button type="button" class="npcbot-secondary" data-action="addField" {{#unless canAddField}}disabled{{/unless}}>
+      <i class="fa-solid fa-plus"></i> {{localize "foundry-npcbot.definitions.addField"}}
+    </button>
   </fieldset>
+
+  <fieldset>
+    <legend>{{localize "foundry-npcbot.definitions.controlsLegend"}}</legend>
+    <p class="hint">{{localize "foundry-npcbot.definitions.controlsHint"}}</p>
+    <div class="npcbot-definitions">
+      {{#each controls}}
+        <article class="npcbot-definition">
+          <input type="hidden" name="controls.{{index}}.id" value="{{id}}">
+          <div class="npcbot-grid-two">
+            <label class="npcbot-field">
+              <span>{{localize "foundry-npcbot.definitions.label"}}</span>
+              <input name="controls.{{index}}.label" value="{{label}}" maxlength="{{../limits.definitionLabel}}" required>
+            </label>
+            <label class="npcbot-field">
+              <span>{{localize "foundry-npcbot.definitions.controlType"}}</span>
+              <select name="controls.{{index}}.type" data-control-type>
+                <option value="slider" {{#if isSlider}}selected{{/if}}>{{localize "foundry-npcbot.definitions.slider"}}</option>
+                <option value="text" {{#if isText}}selected{{/if}}>{{localize "foundry-npcbot.definitions.text"}}</option>
+              </select>
+            </label>
+          </div>
+          <label class="npcbot-field">
+            <span>{{localize "foundry-npcbot.definitions.description"}}</span>
+            <textarea name="controls.{{index}}.description" rows="2" maxlength="{{../limits.definitionDescription}}" required>{{description}}</textarea>
+          </label>
+          {{#if isSlider}}
+            <label class="npcbot-slider">
+              <span>{{localize "foundry-npcbot.definitions.defaultValue"}}</span>
+              <input type="range" name="controls.{{index}}.value" value="{{value}}" min="0" max="100" step="1">
+              <output>{{value}}</output>
+            </label>
+          {{else}}
+            <label class="npcbot-field">
+              <span>{{localize "foundry-npcbot.definitions.defaultValue"}}</span>
+              <textarea name="controls.{{index}}.value" rows="3" maxlength="{{../limits.controlText}}">{{value}}</textarea>
+            </label>
+          {{/if}}
+          <button type="button" class="npcbot-icon-button npcbot-danger" data-action="removeControl" data-index="{{index}}" title="{{localize 'foundry-npcbot.definitions.removeControl'}}">
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        </article>
+      {{/each}}
+    </div>
+    <button type="button" class="npcbot-secondary" data-action="addControl" {{#unless canAddControl}}disabled{{/unless}}>
+      <i class="fa-solid fa-plus"></i> {{localize "foundry-npcbot.definitions.addControl"}}
+    </button>
+  </fieldset>
+
   <footer class="npcbot-actions">
     <button type="button" data-action="save"><i class="fa-solid fa-floppy-disk"></i> {{localize "foundry-npcbot.settings.save"}}</button>
   </footer>

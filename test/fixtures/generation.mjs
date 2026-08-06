@@ -1,8 +1,11 @@
-import {DEFAULT_CONTROLS} from "../../shared/generation-contract.mjs";
+import {
+  DEFAULT_CONTROL_DEFINITIONS,
+  DEFAULT_FIELD_DEFINITIONS,
+} from "../../shared/generation-contract.mjs";
 
 export function createGenerationRequest(overrides = {}) {
   return {
-    schemaVersion: "1",
+    schemaVersion: "2",
     requestId: "request-1",
     scene: {uuid: "Scene.scene-1", name: "Harbor Ward"},
     region: {
@@ -12,7 +15,8 @@ export function createGenerationRequest(overrides = {}) {
     },
     prompt: "Generate residents with competing civic interests.",
     count: 2,
-    controls: {...DEFAULT_CONTROLS},
+    fields: structuredClone(DEFAULT_FIELD_DEFINITIONS),
+    controls: structuredClone(DEFAULT_CONTROL_DEFINITIONS),
     constraints: {
       existingNames: ["Mara Venn"],
       excludedThemes: ["graphic violence"],
@@ -23,46 +27,38 @@ export function createGenerationRequest(overrides = {}) {
 }
 
 export function createNpcDraft(overrides = {}) {
+  const fields = Object.fromEntries(
+    DEFAULT_FIELD_DEFINITIONS.map(({id, label}) => [
+      id,
+      `${label} for the harbor clerk.`,
+    ]),
+  );
   return {
-    id: "npc-1",
-    key: "dock-clerk",
+    id: "npc-id-1",
+    key: "npc-1",
+    slot: 1,
     name: "Mara Venn",
     tokenLabel: "Mara",
-    socialRole: "Harbor clerk",
-    occupation: "Records keeper",
-    appearance: "Ink-stained sleeves and a blue coat.",
-    personalityTraits: ["Exacting", "Quietly compassionate"],
-    ideal: "Every debt should be recorded.",
-    bond: "Protects the night-shift porters.",
-    flaw: "Cannot ignore a discrepancy.",
-    mannerisms: ["Counts on her fingers", "Straightens nearby papers"],
-    motivations: ["Expose a smuggling route"],
-    publicBiography: "A familiar face at the harbor office.",
-    gmSecret: "She altered one manifest.",
-    complication: "A supervisor suspects her.",
-    faction: "Harbor Office",
-    family: {
-      members: [
-        {key: "mara", name: "Mara Venn", description: "The generated NPC."},
-        {key: "ivo", name: "Ivo Venn", description: "Her adult brother."},
-      ],
-      relationships: [
-        {fromKey: "mara", toKey: "ivo", type: "siblingOf"},
-      ],
-    },
-    tags: ["harbor", "bureaucrat"],
+    fields,
     ...overrides,
   };
 }
 
-export function createGenerationResult(npcs = [createNpcDraft()]) {
+export function createGenerationResult(
+  npcs = [createNpcDraft()],
+  {requestedCount = npcs.length, failures = []} = {},
+) {
   return {
-    schemaVersion: "1",
+    schemaVersion: "2",
+    requestedCount,
+    fields: structuredClone(DEFAULT_FIELD_DEFINITIONS),
+    controls: structuredClone(DEFAULT_CONTROL_DEFINITIONS),
     npcs,
+    failures,
     provenance: {
       provider: "ollama",
       model: "qwen3:4b-instruct",
-      promptTemplateVersion: "1",
+      promptTemplateVersion: "2",
     },
   };
 }

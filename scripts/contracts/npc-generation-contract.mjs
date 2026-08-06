@@ -2,7 +2,7 @@ import * as sharedContract from "../../shared/contracts/npc-generation.mjs";
 import {MAX_NPC_COUNT, MIN_NPC_COUNT} from "../constants.mjs";
 import {normalizePlainText, normalizeSingleLine} from "../core/text.mjs";
 
-const EXPECTED_SCHEMA_VERSION = "1";
+const EXPECTED_SCHEMA_VERSION = "2";
 
 export const GENERATION_SCHEMA_VERSION = String(
   sharedContract.GENERATION_SCHEMA_VERSION ?? EXPECTED_SCHEMA_VERSION,
@@ -17,32 +17,42 @@ export const GENERATION_LIMITS = Object.freeze({
   existingNames: sharedContract.GENERATION_LIMITS?.existingNames ?? 500,
   excludedThemes: sharedContract.GENERATION_LIMITS?.excludedThemes ?? 100,
   excludedTheme: sharedContract.GENERATION_LIMITS?.excludedTheme ?? 240,
+  fieldDefinitions: sharedContract.GENERATION_LIMITS?.fieldDefinitions ?? 16,
+  controlDefinitions: sharedContract.GENERATION_LIMITS?.controlDefinitions ?? 16,
+  definitionId: sharedContract.GENERATION_LIMITS?.definitionId ?? 64,
+  definitionLabel: sharedContract.GENERATION_LIMITS?.definitionLabel ?? 80,
+  definitionDescription: sharedContract.GENERATION_LIMITS?.definitionDescription ?? 500,
+  controlText: sharedContract.GENERATION_LIMITS?.controlText ?? 1_000,
+  fieldValue: sharedContract.GENERATION_LIMITS?.fieldValue ?? 2_500,
+  failureMessage: sharedContract.GENERATION_LIMITS?.failureMessage ?? 500,
   shortText: sharedContract.GENERATION_LIMITS?.shortText ?? 240,
   mediumText: sharedContract.GENERATION_LIMITS?.mediumText ?? 1_000,
   longText: sharedContract.GENERATION_LIMITS?.longText ?? 2_500,
-  traits: sharedContract.GENERATION_LIMITS?.traits ?? 8,
-  mannerisms: sharedContract.GENERATION_LIMITS?.mannerisms ?? 8,
-  motivations: sharedContract.GENERATION_LIMITS?.motivations ?? 8,
-  tags: sharedContract.GENERATION_LIMITS?.tags ?? 12,
-  tag: sharedContract.GENERATION_LIMITS?.tag ?? 64,
-  familyMembers: sharedContract.GENERATION_LIMITS?.familyMembers ?? 16,
-  familyRelationships: sharedContract.GENERATION_LIMITS?.familyRelationships ?? 24,
 });
 
-export const DEFAULT_CONTROLS = Object.freeze(normalizeDefaultControls(
-  sharedContract.DEFAULT_CONTROLS,
-));
+export const CONTROL_TYPES = Object.freeze(
+  [...(sharedContract.CONTROL_TYPES ?? ["slider", "text"])],
+);
 
-export const CONTROL_KEYS = Object.freeze(Object.keys(DEFAULT_CONTROLS));
-
+export const DEFAULT_FIELD_DEFINITIONS = sharedContract.DEFAULT_FIELD_DEFINITIONS;
+export const DEFAULT_CONTROL_DEFINITIONS = sharedContract.DEFAULT_CONTROL_DEFINITIONS;
 export const ContractValidationError = sharedContract.ContractValidationError ?? Error;
 
 export function validateGenerationRequest(value) {
   return callRequiredValidator("validateGenerationRequest", value);
 }
 
-export function validateNpcDraft(value) {
-  return callRequiredValidator("validateNpcDraft", value);
+export function validateFieldDefinitions(value) {
+  return callRequiredValidator("validateFieldDefinitions", value);
+}
+
+export function validateControlDefinitions(value) {
+  return callRequiredValidator("validateControlDefinitions", value);
+}
+
+export function validateNpcDraft(value, fieldDefinitions) {
+  const validator = requiredValidator("validateNpcDraft");
+  return validator(value, fieldDefinitions);
 }
 
 export function validateGenerationResult(value) {
@@ -55,6 +65,7 @@ export function buildGenerationRequest({
   region,
   prompt,
   count,
+  fields,
   controls,
   existingNames = [],
   excludedThemes = [],
@@ -76,6 +87,8 @@ export function buildGenerationRequest({
     },
     prompt: normalizePlainText(prompt, {maxLength: GENERATION_LIMITS.prompt}),
     count: clampInteger(count, MIN_NPC_COUNT, MAX_NPC_COUNT),
+    fields: structuredClone(fields),
+    controls: structuredClone(controls),
     constraints: {
       existingNames: normalizeStringList(
         existingNames,
@@ -88,57 +101,24 @@ export function buildGenerationRequest({
         GENERATION_LIMITS.excludedTheme,
       ),
     },
-    controls: normalizeControls(controls),
   };
 
   if (seed !== undefined && seed !== null && seed !== "") {
     request.generation = {seed: Number(seed)};
   }
-
   return validateGenerationRequest(request);
 }
 
-export function normalizeControls(value) {
-  return Object.fromEntries(
-    CONTROL_KEYS.map((key) => [key, clampInteger(value?.[key], 0, 100, DEFAULT_CONTROLS[key])]),
-  );
-}
-
-export function createControlDefinitions(value = DEFAULT_CONTROLS) {
-  const controls = normalizeControls(value);
-  return CONTROL_KEYS.map((key) => ({
-    key,
-    value: controls[key],
-    min: 0,
-    max: 100,
-    step: 1,
-  }));
-}
-
-function normalizeDefaultControls(value) {
-  const fallbacks = {
-    detail: 50,
-    socialDiversity: 50,
-    interconnectedness: 50,
-    familyDepth: 50,
-    eccentricity: 50,
-    danger: 50,
-    magic: 50,
-  };
-  if (!value || typeof value !== "object") return fallbacks;
-  return Object.fromEntries(
-    Object.keys(fallbacks).map((key) => [key, clampInteger(value[key], 0, 100, fallbacks[key])]),
-  );
-}
-
 function callRequiredValidator(exportName, value) {
+  return requiredValidator(exportName)(value);
+}
+
+function requiredValidator(exportName) {
   const validator = sharedContract[exportName];
   if (typeof validator !== "function") {
     throw new Error(`Shared contract export ${exportName} is unavailable.`);
   }
-  const result = validator(value);
-  if (result === undefined || result === true) return value;
-  return result;
+  return validator;
 }
 
 function clampInteger(value, minimum, maximum, fallback = minimum) {

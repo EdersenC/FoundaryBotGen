@@ -34,7 +34,7 @@ test("queueGeneration posts JSON to the authenticated jobs route", async () => {
   const {calls, client} = createClient([
     jsonResponse({jobId: "job-1", status: "queued"}, {status: 202}),
   ]);
-  const request = {schemaVersion: "1", requestId: "request-1"};
+  const request = {schemaVersion: "2", requestId: "request-1"};
 
   const snapshot = await client.queueGeneration(request);
 
@@ -135,7 +135,7 @@ test("endpoint path prefixes are preserved for reverse-proxy deployments", async
     },
   });
 
-  await client.queueGeneration({schemaVersion: "1"});
+  await client.queueGeneration({schemaVersion: "2"});
 
   assert.equal(
     calls[0][0],

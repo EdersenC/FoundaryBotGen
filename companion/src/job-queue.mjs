@@ -146,11 +146,18 @@ export class GenerationJobQueue {
       job.result = result;
       job.progress = { completed: job.progress.total, total: job.progress.total };
       job.status = "succeeded";
-      this.recordEvent(job, {
-        level: "info",
-        code: "job.succeeded",
-        message: `Generation completed with ${result.npcs.length} validated NPC${result.npcs.length === 1 ? "" : "s"}.`,
-      });
+      const failureCount = result.failures?.length ?? 0;
+      this.recordEvent(job, failureCount > 0
+        ? {
+            level: "warn",
+            code: "job.succeeded-partial",
+            message: `Generation completed with ${result.npcs.length} validated NPC${result.npcs.length === 1 ? "" : "s"} and ${failureCount} failed slot${failureCount === 1 ? "" : "s"}.`,
+          }
+        : {
+            level: "info",
+            code: "job.succeeded",
+            message: `Generation completed with ${result.npcs.length} validated NPC${result.npcs.length === 1 ? "" : "s"}.`,
+          });
     } catch (error) {
       if (job.status === "cancelled") return;
       job.status = "failed";

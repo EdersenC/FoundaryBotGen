@@ -9,18 +9,27 @@ import {
 import {CompanionClient} from "../companion-client.mjs";
 import {
   buildGenerationRequest,
-  createControlDefinitions,
   GENERATION_LIMITS,
+  GENERATION_SCHEMA_VERSION,
   validateGenerationResult,
   validateNpcDraft,
 } from "../contracts/npc-generation-contract.mjs";
 import {
-  applyNpcReviewEdits,
-  REVIEW_TEXT_FIELDS,
-  summarizeFamily,
-} from "../core/npc-draft.mjs";
-import {humanizeIdentifier, normalizePlainText} from "../core/text.mjs";
-import {requireDnd5e, requireFullGamemaster, requireNpcMutationAccess, requireReadyScene} from "../foundry/guards.mjs";
+  createControlDefinition,
+  createFieldDefinition,
+  readControlDefinitions,
+  readFieldDefinitions,
+  toControlDefinitionContext,
+  toFieldDefinitionContext,
+} from "../core/generation-definitions.mjs";
+import {applyNpcReviewEdits} from "../core/npc-draft.mjs";
+import {normalizePlainText} from "../core/text.mjs";
+import {
+  requireDnd5e,
+  requireFullGamemaster,
+  requireNpcMutationAccess,
+  requireReadyScene,
+} from "../foundry/guards.mjs";
 import {createNpcActors, placeNpcActors} from "../foundry/npc-persistence.mjs";
 import {getCompanionConfiguration, getGenerationDefaults} from "../settings.mjs";
 
@@ -31,7 +40,7 @@ export class NpcGeneratorApp extends HandlebarsApplicationMixin(ApplicationV2) {
     id: `${MODULE_ID}-generator`,
     classes: [MODULE_ID, `${MODULE_ID}--generator`],
     tag: "form",
-    position: {width: 760, height: 780},
+    position: {width: 820, height: 820},
     window: {
       title: `${MODULE_ID}.generator.title`,
       icon: "fa-solid fa-people-group",
@@ -44,6 +53,10 @@ export class NpcGeneratorApp extends HandlebarsApplicationMixin(ApplicationV2) {
       approve: this.#onApprove,
       place: this.#onPlace,
       restart: this.#onRestart,
+      addField: this.#onAddField,
+      removeField: this.#onRemoveField,
+      addControl: this.#onAddControl,
+      removeControl: this.#onRemoveControl,
     },
     form: {closeOnSubmit: false},
   };
@@ -85,7 +98,8 @@ export class NpcGeneratorApp extends HandlebarsApplicationMixin(ApplicationV2) {
       regionDescription: "",
       prompt: "",
       count: defaults.count,
-      controls: defaults.controls,
+      fields: structuredClone(defaults.fields),
+      controls: structuredClone(defaults.controls),
     };
   }
 
@@ -113,12 +127,12 @@ export class NpcGeneratorApp extends HandlebarsApplicationMixin(ApplicationV2) {
         selected: region.id === this.#configuration.regionId,
       })),
       configuration: this.#configuration,
-      limits: {
-        ...GENERATION_LIMITS,
-        listText: (GENERATION_LIMITS.shortText + 1) * 8,
-      },
+      limits: GENERATION_LIMITS,
       countRange: {min: MIN_NPC_COUNT, max: MAX_NPC_COUNT},
-      controls: createControlDefinitions(this.#configuration.controls).map(addControlLabel),
+      fields: toFieldDefinitionContext(this.#configuration.fields),
+      controls: toControlDefinitionContext(this.#configuration.controls),
+      canAddField: this.#configuration.fields.length < GENERATION_LIMITS.fieldDefinitions,
+      canAddControl: this.#configuration.controls.length < GENERATION_LIMITS.controlDefinitions,
       job: this.#snapshot ? {
         id: this.#snapshot.jobId,
         status: localizeStatus(this.#snapshot.status),
@@ -127,7 +141,10 @@ export class NpcGeneratorApp extends HandlebarsApplicationMixin(ApplicationV2) {
       } : null,
       connection: toConnectionContext(this.#connection),
       diagnostics: toDiagnosticsContext(this.#snapshot),
-      drafts: this.#drafts.map(toReviewContext),
+      drafts: this.#drafts.map((draft, index) =>
+        toReviewContext(draft, index, this.#result?.fields ?? [])),
+      generationFailures: (this.#result?.failures ?? []).map(toFailureContext),
+      hasGenerationFailures: (this.#result?.failures?.length ?? 0) > 0,
       createdActors: this.#createdActors.map((actor) => ({id: actor.id, name: actor.name})),
       placedCount: this.#placedCount,
       error: this.#error,
@@ -137,10 +154,11 @@ export class NpcGeneratorApp extends HandlebarsApplicationMixin(ApplicationV2) {
 
   async _onRender(context, options) {
     await super._onRender(context, options);
-    for (const input of this.element.querySelectorAll('input[type="range"]')) {
-      input.addEventListener("input", () => {
-        const output = input.closest("label")?.querySelector("output");
-        if (output) output.value = input.value;
+    bindRangeOutputs(this.element);
+    for (const select of this.element.querySelectorAll("select[data-control-type]")) {
+      select.addEventListener("change", () => {
+        this.#syncConfiguration();
+        this.render({force: true});
       });
     }
     if (!this.#connectionCheckStarted && this.#phase === "configure") {
@@ -199,6 +217,40 @@ export class NpcGeneratorApp extends HandlebarsApplicationMixin(ApplicationV2) {
     this.render({force: true});
   }
 
+  static async #onAddField() {
+    if (this.#phase !== "configure") return;
+    this.#syncConfiguration();
+    if (this.#configuration.fields.length >= GENERATION_LIMITS.fieldDefinitions) return;
+    this.#configuration.fields.push(createFieldDefinition(this.#configuration.fields));
+    this.render({force: true});
+  }
+
+  static async #onRemoveField(event, target) {
+    if (this.#phase !== "configure") return;
+    this.#syncConfiguration();
+    const index = readActionIndex(event, target);
+    if (index === null || this.#configuration.fields.length <= 1) return;
+    this.#configuration.fields.splice(index, 1);
+    this.render({force: true});
+  }
+
+  static async #onAddControl() {
+    if (this.#phase !== "configure") return;
+    this.#syncConfiguration();
+    if (this.#configuration.controls.length >= GENERATION_LIMITS.controlDefinitions) return;
+    this.#configuration.controls.push(createControlDefinition(this.#configuration.controls));
+    this.render({force: true});
+  }
+
+  static async #onRemoveControl(event, target) {
+    if (this.#phase !== "configure") return;
+    this.#syncConfiguration();
+    const index = readActionIndex(event, target);
+    if (index === null) return;
+    this.#configuration.controls.splice(index, 1);
+    this.render({force: true});
+  }
+
   async #runAction(action) {
     if (this.#actionInFlight) return;
     this.#actionInFlight = true;
@@ -231,18 +283,21 @@ export class NpcGeneratorApp extends HandlebarsApplicationMixin(ApplicationV2) {
       const health = await createCompanionClient().health({signal: controller.signal});
       if (controller.signal.aborted) return;
       const provider = health.provider ?? {};
-      const ready = health.status === "ok" && provider.status === "ready";
+      const schemaCompatible = String(health.schemaVersion ?? "") === GENERATION_SCHEMA_VERSION;
+      const ready = health.status === "ok" && provider.status === "ready" && schemaCompatible;
       this.#connection = {
         state: ready ? "ready" : "degraded",
         endpoint: configuration.endpoint,
         model: normalizePlainText(provider.model, {maxLength: 200}),
         providerStatus: normalizePlainText(provider.status, {maxLength: 100}),
         outputFormatMode: normalizePlainText(provider.outputFormatMode, {maxLength: 100}),
+        schemaCompatible,
+        companionSchemaVersion: String(health.schemaVersion ?? "unknown"),
         queue: {
           active: Math.max(0, Number(health.queue?.active) || 0),
           pending: Math.max(0, Number(health.queue?.pending) || 0),
         },
-        message: connectionMessage(health),
+        message: connectionMessage(health, schemaCompatible),
       };
     } catch (error) {
       if (error?.name === "AbortError") return;
@@ -261,14 +316,18 @@ export class NpcGeneratorApp extends HandlebarsApplicationMixin(ApplicationV2) {
   async #queueGeneration() {
     requireFullGamemaster();
     requireDnd5e();
+    if (this.#connection?.schemaCompatible === false) {
+      throw new Error(this.#connection.message);
+    }
     const scene = requireReadyScene(this.#sceneId);
-    const configuration = readGenerationForm(this.element);
-    if (!configuration.prompt) {
+    this.#syncConfiguration();
+    if (!this.#configuration.prompt) {
       throw new Error(game.i18n.localize(`${MODULE_ID}.errors.promptRequired`));
     }
-    this.#configuration = configuration;
 
-    const region = configuration.regionId ? scene.regions.get(configuration.regionId) : null;
+    const region = this.#configuration.regionId
+      ? scene.regions.get(this.#configuration.regionId)
+      : null;
     this.#selectedRegionUuid = region?.uuid ?? null;
     const request = buildGenerationRequest({
       requestId: foundry.utils.randomID(24),
@@ -276,11 +335,12 @@ export class NpcGeneratorApp extends HandlebarsApplicationMixin(ApplicationV2) {
       region: {
         uuid: region?.uuid ?? null,
         name: region?.name ?? scene.name,
-        description: configuration.regionDescription,
+        description: this.#configuration.regionDescription,
       },
-      prompt: configuration.prompt,
-      count: configuration.count,
-      controls: configuration.controls,
+      prompt: this.#configuration.prompt,
+      count: this.#configuration.count,
+      fields: this.#configuration.fields,
+      controls: this.#configuration.controls,
       existingNames: game.actors.contents.map((actor) => actor.name),
       excludedThemes: [],
     });
@@ -306,7 +366,8 @@ export class NpcGeneratorApp extends HandlebarsApplicationMixin(ApplicationV2) {
 
         if (snapshot.status === JOB_STATUS.succeeded) {
           this.#result = validateGenerationResult(snapshot.result);
-          this.#drafts = this.#result.npcs.map((draft) => validateNpcDraft(draft));
+          this.#drafts = this.#result.npcs.map((draft) =>
+            validateNpcDraft(draft, this.#result.fields));
           this.#phase = "review";
           this.#pollController = null;
           this.render({force: true});
@@ -353,10 +414,18 @@ export class NpcGeneratorApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const approved = [];
     for (let index = 0; index < this.#drafts.length; index += 1) {
       if (!data.has(`include.${index}`)) continue;
-      const edits = Object.fromEntries(
-        REVIEW_TEXT_FIELDS.map((field) => [field, data.get(`npcs.${index}.${field}`)]),
+      const fieldValues = Object.fromEntries(
+        this.#result.fields.map(({id}) => [
+          id,
+          data.get(`npcs.${index}.fields.${id}`),
+        ]),
       );
-      approved.push(validateNpcDraft(applyNpcReviewEdits(this.#drafts[index], edits)));
+      const edited = applyNpcReviewEdits(this.#drafts[index], {
+        name: data.get(`npcs.${index}.name`),
+        tokenLabel: data.get(`npcs.${index}.tokenLabel`),
+        fields: fieldValues,
+      }, this.#result.fields);
+      approved.push(validateNpcDraft(edited, this.#result.fields));
     }
     if (approved.length === 0) {
       throw new Error(game.i18n.localize(`${MODULE_ID}.errors.noApprovedNpcs`));
@@ -368,6 +437,8 @@ export class NpcGeneratorApp extends HandlebarsApplicationMixin(ApplicationV2) {
       jobId: this.#snapshot?.jobId,
       regionUuid: this.#selectedRegionUuid,
       provenance: this.#result?.provenance,
+      fields: this.#result.fields,
+      controls: this.#result.controls,
     });
     this.#phase = "created";
     this.render({force: true});
@@ -388,13 +459,15 @@ export class NpcGeneratorApp extends HandlebarsApplicationMixin(ApplicationV2) {
       }));
     }
   }
+
+  #syncConfiguration() {
+    if (!this.element) return;
+    this.#configuration = readGenerationForm(this.element);
+  }
 }
 
 function readGenerationForm(form) {
   const data = new FormData(form);
-  const controls = Object.fromEntries(
-    createControlDefinitions().map(({key}) => [key, data.get(`controls.${key}`)]),
-  );
   return {
     regionId: String(data.get("regionId") ?? ""),
     regionDescription: normalizePlainText(data.get("regionDescription"), {
@@ -404,7 +477,8 @@ function readGenerationForm(form) {
       maxLength: GENERATION_LIMITS.prompt,
     }),
     count: Number(data.get("count")),
-    controls,
+    fields: readFieldDefinitions(data),
+    controls: readControlDefinitions(data),
   };
 }
 
@@ -416,37 +490,41 @@ function createCompanionClient() {
   });
 }
 
-function toReviewContext(draft, index) {
+function toReviewContext(draft, index, fieldDefinitions) {
   return {
     index,
     id: draft.id,
+    slot: draft.slot,
     name: draft.name,
     tokenLabel: draft.tokenLabel,
-    socialRole: draft.socialRole,
-    occupation: draft.occupation,
-    appearance: draft.appearance,
-    personalityTraits: textFieldValue(draft.personalityTraits),
-    ideal: draft.ideal,
-    bond: draft.bond,
-    flaw: draft.flaw,
-    mannerisms: textFieldValue(draft.mannerisms),
-    motivations: textFieldValue(draft.motivations),
-    publicBiography: draft.publicBiography,
-    gmSecret: draft.gmSecret,
-    complication: draft.complication,
-    faction: draft.faction,
-    familySummary: summarizeFamily(draft.family),
+    fields: fieldDefinitions.map((definition) => ({
+      ...definition,
+      value: draft.fields[definition.id] ?? "",
+    })),
   };
 }
 
-function textFieldValue(value) {
-  return Array.isArray(value) ? value.join("\n") : String(value ?? "");
+function toFailureContext(failure) {
+  return {
+    slot: failure.slot,
+    code: normalizePlainText(failure.code, {maxLength: 80}),
+    message: normalizePlainText(failure.message, {maxLength: GENERATION_LIMITS.failureMessage}),
+  };
 }
 
-function addControlLabel(control) {
-  const localizationKey = `${MODULE_ID}.controls.${control.key}`;
-  const localized = game.i18n.localize(localizationKey);
-  return {...control, label: localized === localizationKey ? humanizeIdentifier(control.key) : localized};
+function bindRangeOutputs(element) {
+  for (const input of element.querySelectorAll('input[type="range"]')) {
+    input.addEventListener("input", () => {
+      const output = input.closest(".npcbot-definition")?.querySelector("output");
+      if (output) output.value = input.value;
+    });
+  }
+}
+
+function readActionIndex(event, target) {
+  const value = target?.dataset?.index ?? event?.currentTarget?.dataset?.index;
+  const index = Number(value);
+  return Number.isInteger(index) && index >= 0 ? index : null;
 }
 
 function normalizeProgress(progress, fallbackTotal) {
@@ -462,14 +540,13 @@ function normalizeProgress(progress, fallbackTotal) {
 function localizeStatus(status) {
   const key = `${MODULE_ID}.jobStatus.${status}`;
   const localized = game.i18n.localize(key);
-  return localized === key ? humanizeIdentifier(status) : localized;
+  return localized === key ? status : localized;
 }
 
 function toConnectionContext(value) {
   const state = new Set(["checking", "ready", "degraded", "unreachable"]).has(value?.state)
     ? value.state
     : "unreachable";
-  const labelKey = `${MODULE_ID}.connection.${state}`;
   const icon = {
     checking: "fa-solid fa-spinner fa-spin",
     ready: "fa-solid fa-circle-check",
@@ -480,12 +557,18 @@ function toConnectionContext(value) {
     ...value,
     state,
     icon,
-    label: game.i18n.localize(labelKey),
+    label: game.i18n.localize(`${MODULE_ID}.connection.${state}`),
     isChecking: state === "checking",
   };
 }
 
-function connectionMessage(health) {
+function connectionMessage(health, schemaCompatible) {
+  if (!schemaCompatible) {
+    return game.i18n.format(`${MODULE_ID}.connection.schemaMismatchMessage`, {
+      moduleVersion: GENERATION_SCHEMA_VERSION,
+      companionVersion: String(health?.schemaVersion ?? "unknown"),
+    });
+  }
   const provider = health?.provider ?? {};
   if (provider.status === "ready") {
     const outputMode = provider.outputFormatMode === "json"
