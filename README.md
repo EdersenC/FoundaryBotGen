@@ -90,7 +90,36 @@ Only one `ollama serve` process is needed. Desktop installations may already run
 
 Generate a long random pairing token, for example with `openssl rand -hex 32`. Use the same value in the companion environment and the Foundry NPCBOT module setting. Do not place the token in source control, URLs, screenshots, or chat logs.
 
-Linux or macOS:
+### Windows PowerShell quick setup
+
+Node.js includes npm, and this repository has no external npm dependencies. From the repository root, copy the safe template and open the private configuration file:
+
+```powershell
+Copy-Item .\companion\.env.example .\companion\.env
+notepad .\companion\.env
+```
+
+Replace `CHANGE_ME` with the pairing token, save the file, and start the companion:
+
+```powershell
+npm run companion
+```
+
+After the one-time setup, `npm run companion` is the only startup command. The real `companion/.env` file is ignored by Git; `.env.example` contains no credential and is safe to share.
+
+### Linux or macOS quick setup
+
+```bash
+cp companion/.env.example companion/.env
+${EDITOR:-vi} companion/.env
+npm run companion
+```
+
+Replace `CHANGE_ME` before starting the companion.
+
+### Process environment alternative
+
+PowerShell or shell environment variables can be used instead of the file and take precedence over matching `.env` entries. Linux or macOS:
 
 ```bash
 export NPCBOT_PAIRING_TOKEN='paste-a-long-random-token-here'
@@ -116,7 +145,7 @@ $env:NPCBOT_REQUEST_TIMEOUT_MS = '120000'
 npm run companion
 ```
 
-The equivalent direct startup command is `npm --prefix companion start`. No root package dependencies are installed.
+The companion loads only the supported `NPCBOT_...` keys from `companion/.env`. It rejects unknown keys, duplicates, malformed lines, and unterminated quotes instead of silently accepting likely configuration mistakes. Blank lines and lines beginning with `#` are allowed; inline comments and shell expansion are not. The equivalent direct startup command is `npm --prefix companion start`.
 
 With the companion running, an authenticated health check is available at `/v1/health`:
 
@@ -160,7 +189,7 @@ Some Ollama releases or model runners reject complex JSON Schema grammars with `
 | `NPCBOT_OLLAMA_MODEL` | `qwen3:4b-instruct` | Installed Ollama model used for NPC generation. |
 | `NPCBOT_REQUEST_TIMEOUT_MS` | `120000` | Maximum Ollama request duration in milliseconds. |
 
-Environment variables are read when the companion starts. Restart it after changing them.
+The `.env` file and process environment are read when the companion starts. Restart it after changing either source.
 
 ## CORS, pairing, and localhost
 

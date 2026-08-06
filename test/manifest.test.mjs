@@ -34,8 +34,10 @@ test("root package is dependency-free and exposes operational commands", async (
 
 test("companion package exposes its dependency-free Node entrypoint", async () => {
   const packageJson = await readProjectJson("companion/package.json");
+  const manifest = await readProjectJson("module.json");
 
   assert.deepEqual(validateCompanionPackage(packageJson), []);
+  assert.equal(packageJson.version, manifest.version);
   assert.deepEqual(packageJson.dependencies ?? {}, {});
   assert.deepEqual(packageJson.devDependencies ?? {}, {});
 });

@@ -6,6 +6,7 @@ Foundry NPCBOT is an early local-first MVP. Treat the companion as a privileged 
 
 - Keep `NPCBOT_HOST=127.0.0.1` unless a network deployment has been intentionally secured.
 - Generate a unique, high-entropy `NPCBOT_PAIRING_TOKEN`. Never commit or place it in a URL.
+- Treat `companion/.env` as a credential file. It is ignored by Git, but must not be uploaded, shared, or included in screenshots; only `.env.example` is safe to distribute.
 - Set `NPCBOT_ALLOWED_ORIGINS` to the exact Foundry origins used by the GM. Do not use wildcard origins.
 - Do not expose the companion directly to the public internet. The MVP does not provide TLS, user accounts, rate limiting, or hardened multi-tenant isolation.
 - Keep Ollama on loopback unless it has an independent authenticated network boundary.

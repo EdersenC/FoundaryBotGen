@@ -14,7 +14,9 @@ const EXPECTED_PATHS = Object.freeze([
   "LICENSE",
   "README.md",
   "SECURITY.md",
+  "companion/.env.example",
   "companion/package.json",
+  "companion/src/environment-file.mjs",
   "companion/src/main.mjs",
   "module.json",
   "package.json",
@@ -230,6 +232,9 @@ export async function validateWorkspace(root = DEFAULT_ROOT) {
   try {
     const companionPackage = await readJson(root, "companion/package.json");
     issues.push(...validateCompanionPackage(companionPackage));
+    if (manifest) {
+      pushMismatch(issues, "companion/package.json version", companionPackage.version, manifest.version);
+    }
   } catch (error) {
     issues.push(`Unable to parse companion/package.json: ${error.message}`);
   }
