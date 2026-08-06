@@ -9,7 +9,8 @@
     "companion": "npm --prefix companion start",
     "test": "node --test",
     "validate": "node tools/validate-workspace.mjs",
-    "check": "npm run test && npm run validate"
+    "check": "npm run test && npm run validate",
+    "package": "node tools/package-module.mjs"
   },
   "engines": {
     "node": ">=20"

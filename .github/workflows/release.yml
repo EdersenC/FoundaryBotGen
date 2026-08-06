@@ -1,0 +1,50 @@
+name: Release Foundry module
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Verify tag and manifest version
+        shell: bash
+        run: |
+          manifest_version="$(node -p "JSON.parse(require('fs').readFileSync('module.json', 'utf8')).version")"
+          if [[ "${GITHUB_REF_NAME}" != "v${manifest_version}" ]]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match module version ${manifest_version}." >&2
+            exit 1
+          fi
+
+      - name: Run checks
+        run: npm run check
+
+      - name: Build Foundry archive
+        run: npm run package
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          manifest_version="$(node -p "JSON.parse(require('fs').readFileSync('module.json', 'utf8')).version")"
+          gh release create "${GITHUB_REF_NAME}" \
+            module.json#Foundry-manifest \
+            "dist/foundry-npcbot-v${manifest_version}.zip#Foundry-module" \
+            --verify-tag \
+            --latest \
+            --generate-notes \
+            --title "Foundry NPCBOT ${manifest_version}"

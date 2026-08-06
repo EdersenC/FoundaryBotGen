@@ -3,6 +3,10 @@
   "title": "Foundry NPCBOT",
   "description": "GM-facing, local-model-assisted NPC generation for the D&D Fifth Edition system.",
   "version": "0.1.0",
+  "url": "https://github.com/EdersenC/FoundaryBotGen",
+  "manifest": "https://github.com/EdersenC/FoundaryBotGen/releases/latest/download/module.json",
+  "download": "https://github.com/EdersenC/FoundaryBotGen/releases/download/v0.1.0/foundry-npcbot-v0.1.0.zip",
+  "bugs": "https://github.com/EdersenC/FoundaryBotGen/issues",
   "authors": [
     {
       "name": "Foundry NPCBOT contributors"

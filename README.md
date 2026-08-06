@@ -24,7 +24,19 @@ NPC profiles cover names, social roles, appearance, personality, mannerisms, bac
 - [Ollama](https://ollama.com/) running where the GM's browser can reach the companion.
 - The official [`qwen3:4b-instruct`](https://ollama.com/library/qwen3%3A4b-instruct) model, or another locally installed instruct model selected through configuration.
 
-## Install the Foundry module
+## Install directly in Foundry
+
+In **Foundry Setup → Add-on Modules → Install Module**, paste this exact manifest URL:
+
+```text
+https://github.com/EdersenC/FoundaryBotGen/releases/latest/download/module.json
+```
+
+Do not paste the repository page or a GitHub `/blob/` URL; those return HTML rather than a module manifest. Foundry reads the release manifest, downloads the versioned ZIP named by its `download` field, and installs the module automatically.
+
+The downloadable module contains the Foundry browser integration only. The GM must configure a reachable NPCBOT companion. A friend using your hosted companion does not need to install Ollama or Node.js on their own computer.
+
+## Manual or development installation
 
 This repository does not require a front-end build.
 
@@ -181,9 +193,12 @@ The root project has no external npm dependencies. With Node.js 20 or newer:
 npm test
 npm run validate
 npm run check
+npm run package
 ```
 
 `npm run validate` is read-only. It verifies the module and package contracts, checks manifest-referenced files, and runs `node --check` over workspace `.mjs` sources.
+
+`npm run package` creates `dist/foundry-npcbot-v<version>.zip` with `module.json` at the archive root and excludes the companion, tests, repository metadata, and development tools. Pushing a matching `v<version>` tag runs the release workflow and uploads both `module.json` and the ZIP as GitHub release assets.
 
 ## License
 

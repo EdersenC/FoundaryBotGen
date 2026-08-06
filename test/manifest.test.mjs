@@ -26,8 +26,10 @@ test("module manifest matches the supported Foundry and dnd5e contract", async (
 
 test("root package is dependency-free and exposes operational commands", async () => {
   const packageJson = await readProjectJson("package.json");
+  const manifest = await readProjectJson("module.json");
 
   assert.deepEqual(validatePackage(packageJson), []);
+  assert.equal(packageJson.version, manifest.version);
 });
 
 test("companion package exposes its dependency-free Node entrypoint", async () => {

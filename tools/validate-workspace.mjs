@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 
 const TOOL_PATH = fileURLToPath(import.meta.url);
 const DEFAULT_ROOT = path.resolve(path.dirname(TOOL_PATH), "..");
+const REPOSITORY_URL = "https://github.com/EdersenC/FoundaryBotGen";
 
 const EXPECTED_PATHS = Object.freeze([
   "LICENSE",
@@ -57,6 +58,19 @@ export function validateManifest(manifest) {
   pushMismatch(issues, "module.json id", manifest.id, "foundry-npcbot");
   pushMismatch(issues, "module.json compatibility.minimum", manifest.compatibility?.minimum, "14.356");
   pushMismatch(issues, "module.json compatibility.verified", manifest.compatibility?.verified, "14.365");
+  pushMismatch(issues, "module.json url", manifest.url, REPOSITORY_URL);
+  pushMismatch(
+    issues,
+    "module.json manifest",
+    manifest.manifest,
+    `${REPOSITORY_URL}/releases/latest/download/module.json`,
+  );
+  pushMismatch(
+    issues,
+    "module.json download",
+    manifest.download,
+    `${REPOSITORY_URL}/releases/download/v${manifest.version}/foundry-npcbot-v${manifest.version}.zip`,
+  );
 
   if (!manifest.esmodules?.includes("scripts/main.mjs")) {
     issues.push("module.json esmodules must include scripts/main.mjs.");
@@ -89,7 +103,7 @@ export function validatePackage(packageJson) {
 
   pushMismatch(issues, "package.json type", packageJson.type, "module");
 
-  for (const scriptName of ["companion", "test", "validate", "check"]) {
+  for (const scriptName of ["companion", "test", "validate", "check", "package"]) {
     if (typeof packageJson.scripts?.[scriptName] !== "string") {
       issues.push(`package.json scripts.${scriptName} must be defined.`);
     }
@@ -206,6 +220,9 @@ export async function validateWorkspace(root = DEFAULT_ROOT) {
   try {
     const packageJson = await readJson(root, "package.json");
     issues.push(...validatePackage(packageJson));
+    if (manifest) {
+      pushMismatch(issues, "package.json version", packageJson.version, manifest.version);
+    }
   } catch (error) {
     issues.push(`Unable to parse package.json: ${error.message}`);
   }
