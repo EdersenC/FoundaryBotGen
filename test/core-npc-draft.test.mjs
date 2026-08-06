@@ -8,82 +8,91 @@ import {
   createActorSource,
 } from "../scripts/core/npc-draft.mjs";
 
+const FIELDS = Object.freeze([
+  {id: "role", label: "Social Role", description: "Place in society."},
+  {id: "appearance", label: "Appearance", description: "Visible details."},
+  {id: "secret", label: "GM Notes", description: "Private campaign notes."},
+]);
+
 function createDraft(overrides = {}) {
   return {
-    id: "npc-1",
-    key: "dock-clerk",
+    id: "npc-id-1",
+    key: "npc-1",
+    slot: 1,
     name: "Mara Venn",
     tokenLabel: "Mara",
-    socialRole: "Harbor clerk",
-    occupation: "Records keeper",
-    appearance: "Ink-stained sleeves",
-    personalityTraits: ["Exacting", "Quietly compassionate"],
-    ideal: "Every debt should be recorded.",
-    bond: "Protects the night-shift porters.",
-    flaw: "Cannot ignore a discrepancy.",
-    mannerisms: ["Counts on her fingers"],
-    motivations: ["Expose a smuggling route"],
-    publicBiography: "A familiar face at the harbor office.",
-    gmSecret: "She altered one manifest.",
-    complication: "A supervisor suspects her.",
-    faction: "Harbor Office",
-    family: {members: [], relationships: []},
-    tags: [],
+    fields: {
+      role: "Harbor clerk",
+      appearance: "Ink-stained sleeves",
+      secret: "She altered one manifest.",
+    },
     ...overrides,
   };
 }
 
-test("review edits normalize editable text without mutating the generated draft", () => {
+test("review edits normalize configured fields without mutating the generated draft", () => {
   const draft = createDraft();
 
   const edited = applyNpcReviewEdits(draft, {
     name: "  Mara\nVenn  ",
-    appearance: "  Blue coat\r\n\r\nSilver pin  ",
-    personalityTraits: "  Patient\nObservant\nPatient  ",
-    mannerisms: "Counts doors\nTaps her ring",
-    ignoredField: "must not be copied",
-  });
+    tokenLabel: "  Clerk Mara ",
+    fields: {
+      role: "  Night clerk  ",
+      appearance: "  Blue coat\r\n\r\nSilver pin  ",
+      secret: " Keeps a copied ledger. ",
+      ignored: "must not be copied",
+    },
+  }, FIELDS);
 
   assert.notStrictEqual(edited, draft);
   assert.equal(draft.name, "Mara Venn");
   assert.equal(edited.name, "Mara Venn");
-  assert.equal(edited.appearance, "Blue coat\n\nSilver pin");
-  assert.deepEqual(edited.personalityTraits, ["Patient", "Observant"]);
-  assert.deepEqual(edited.mannerisms, ["Counts doors", "Taps her ring"]);
-  assert.equal(Object.hasOwn(edited, "ignoredField"), false);
+  assert.equal(edited.tokenLabel, "Clerk Mara");
+  assert.equal(edited.fields.appearance, "Blue coat\n\nSilver pin");
+  assert.equal(Object.hasOwn(edited.fields, "ignored"), false);
 });
 
-test("biography builders escape model and review text before producing HTML", () => {
+test("biography builder escapes dynamic labels and reviewed values", () => {
   const draft = createDraft({
-    socialRole: '<script>alert("role")</script>',
-    appearance: "Tall & watchful\nCarries <keys>",
-    personalityTraits: ["Patient & alert", "Avoids <arguments>"],
-    publicBiography: "Known as <Mara> & trusted.",
+    fields: {
+      role: '<script>alert("role")</script>',
+      appearance: "Tall & watchful\nCarries <keys>",
+      secret: "Known as <Mara> & trusted.",
+    },
   });
+  const unsafeDefinitions = [
+    {...FIELDS[0], label: "Role <admin>"},
+    ...FIELDS.slice(1),
+  ];
 
-  const gmBiography = buildBiographyHtml(draft);
-  const publicBiography = buildPublicBiographyHtml(draft);
+  const biography = buildBiographyHtml(draft, unsafeDefinitions);
 
-  assert.doesNotMatch(gmBiography, /<script>/);
-  assert.match(gmBiography, /&lt;script&gt;alert\(&quot;role&quot;\)&lt;\/script&gt;/);
-  assert.match(gmBiography, /Tall &amp; watchful<br>Carries &lt;keys&gt;/);
-  assert.match(gmBiography, /Patient &amp; alert/);
-  assert.match(gmBiography, /Avoids &lt;arguments&gt;/);
-  assert.match(gmBiography, /<section class="secret">/);
-  assert.equal(publicBiography, "<p>Known as &lt;Mara&gt; &amp; trusted.</p>");
+  assert.doesNotMatch(biography, /<script>/);
+  assert.match(biography, /Role &lt;admin&gt;/);
+  assert.match(biography, /&lt;script&gt;alert\(&quot;role&quot;\)&lt;\/script&gt;/);
+  assert.match(biography, /Tall &amp; watchful<br>Carries &lt;keys&gt;/);
+  assert.equal(buildPublicBiographyHtml(), "<p></p>");
 });
 
-test("Actor source uses the dnd5e npc type and keeps module data namespaced", () => {
+test("Actor source uses dnd5e npc and snapshots dynamic definitions in flags", () => {
   const source = createActorSource(createDraft(), {
     folderId: "folder-1",
     moduleId: "foundry-npcbot",
     generation: {
-      schemaVersion: "1",
+      schemaVersion: "2",
       sceneUuid: "Scene.scene-1",
       regionUuid: null,
       jobId: "job-1",
       generatedAt: "2026-08-05T00:00:00.000Z",
       provenance: {provider: "ollama", model: "qwen3:4b-instruct"},
+      fields: FIELDS,
+      controls: [{
+        id: "detail",
+        label: "Detail",
+        description: "Amount of detail.",
+        type: "slider",
+        value: 75,
+      }],
     },
   });
 
@@ -91,8 +100,9 @@ test("Actor source uses the dnd5e npc type and keeps module data namespaced", ()
   assert.equal(source.folder, "folder-1");
   assert.equal(source.prototypeToken.actorLink, true);
   assert.equal(source.prototypeToken.name, "Mara");
-  assert.equal(source.flags["foundry-npcbot"].sceneUuid, "Scene.scene-1");
-  assert.equal(source.flags["foundry-npcbot"].provenance.model, "qwen3:4b-instruct");
-  assert.equal(Object.hasOwn(source.flags["foundry-npcbot"].narrative, "gmSecret"), false);
-  assert.equal(source.system.details.ideal, "Every debt should be recorded.");
+  assert.equal(source.flags["foundry-npcbot"].schemaVersion, "2");
+  assert.equal(source.flags["foundry-npcbot"].definitions.fields[0].label, "Social Role");
+  assert.equal(source.flags["foundry-npcbot"].definitions.controls[0].value, 75);
+  assert.equal(source.flags["foundry-npcbot"].fields.secret, "She altered one manifest.");
+  assert.equal(source.system.details.biography.public, "<p></p>");
 });

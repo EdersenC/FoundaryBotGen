@@ -6,7 +6,15 @@ import {
   MODULE_ID,
   SETTINGS,
 } from "./constants.mjs";
-import {DEFAULT_CONTROLS, normalizeControls} from "./contracts/npc-generation-contract.mjs";
+import {
+  GENERATION_SCHEMA_VERSION,
+  validateControlDefinitions,
+  validateFieldDefinitions,
+} from "./contracts/npc-generation-contract.mjs";
+import {
+  normalizeStoredControlDefinitions,
+  normalizeStoredFieldDefinitions,
+} from "./core/generation-definitions.mjs";
 import {NpcBotSettingsApp} from "./apps/npcbot-settings-app.mjs";
 
 export function registerSettings() {
@@ -35,8 +43,10 @@ export function registerSettings() {
     config: false,
     type: Object,
     default: {
+      schemaVersion: GENERATION_SCHEMA_VERSION,
       count: DEFAULT_NPC_COUNT,
-      controls: {...DEFAULT_CONTROLS},
+      fields: normalizeStoredFieldDefinitions(),
+      controls: normalizeStoredControlDefinitions(),
     },
   });
 
@@ -61,16 +71,21 @@ export function getGenerationDefaults() {
   const stored = game.settings.get(MODULE_ID, SETTINGS.generationDefaults);
   return {
     count: clampCount(stored?.count),
-    controls: normalizeControls(stored?.controls),
+    fields: normalizeStoredFieldDefinitions(stored?.fields),
+    controls: normalizeStoredControlDefinitions(stored?.controls),
   };
 }
 
-export async function setNpcBotSettings({endpoint, pairingToken, count, controls}) {
+export async function setNpcBotSettings({endpoint, pairingToken, count, fields, controls}) {
+  const validatedFields = validateFieldDefinitions(fields);
+  const validatedControls = validateControlDefinitions(controls);
   await game.settings.set(MODULE_ID, SETTINGS.companionEndpoint, endpoint);
   await game.settings.set(MODULE_ID, SETTINGS.pairingToken, pairingToken);
   await game.settings.set(MODULE_ID, SETTINGS.generationDefaults, {
+    schemaVersion: GENERATION_SCHEMA_VERSION,
     count: clampCount(count),
-    controls: normalizeControls(controls),
+    fields: validatedFields,
+    controls: validatedControls,
   });
 }
 

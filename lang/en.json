@@ -37,6 +37,7 @@
       "modelMissingMessage": "Ollama is running, but {model} is not installed.",
       "jsonSchema": "JSON Schema",
       "jsonFallback": "compatible JSON fallback",
+      "schemaMismatchMessage": "Module contract v{moduleVersion} does not match companion contract v{companionVersion}. Update both the Foundry module and companion, then restart them.",
       "endpoint": "Endpoint",
       "queue": "Queue: {active} active, {pending} waiting",
       "checkAgain": "Check Again"
@@ -50,6 +51,8 @@
     "review": {
       "title": "Review NPC Drafts",
       "hint": "Edit generated text, uncheck any NPC you do not want, then create ordinary D&D5e NPC Actors.",
+      "partialTitle": "Some NPC slots could not be generated",
+      "partialHint": "The valid NPCs below were preserved for review. Failed slots were not allowed to delete completed work.",
       "approveNpc": "Approve this NPC",
       "name": "Actor name",
       "tokenLabel": "Token label",
@@ -69,6 +72,24 @@
       "family": "Generated family structure",
       "discard": "Discard Drafts",
       "createAndPlace": "Approve, Create, and Place"
+    },
+    "definitions": {
+      "fieldsLegend": "NPC Output Fields",
+      "fieldsHint": "These are the world defaults. Every field has a stable internal ID, a visible label, and instructions for the model.",
+      "fieldsRunHint": "Choose exactly what information this cast should contain. Changes here apply to this generation run.",
+      "controlsLegend": "Generation Controls",
+      "controlsHint": "Create 0-100 sliders or free-form text controls that shape generation.",
+      "controlsRunHint": "Adjust, add, rename, or remove sliders and text guidance for this generation run.",
+      "label": "Label",
+      "description": "Model guidance",
+      "controlType": "Control type",
+      "slider": "0-100 slider",
+      "text": "Text box",
+      "defaultValue": "Default value",
+      "addField": "Add Output Field",
+      "removeField": "Remove output field",
+      "addControl": "Add Control",
+      "removeControl": "Remove control"
     },
     "created": {
       "title": "NPC Actors Created",
@@ -101,7 +122,7 @@
       },
       "generationDefaults": {
         "name": "Generation defaults",
-        "hint": "Default NPC count and control values for this World."
+        "hint": "Default NPC count, output fields, and generation controls for this World."
       },
       "save": "Save Settings"
     },

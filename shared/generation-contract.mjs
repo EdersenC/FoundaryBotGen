@@ -1,23 +1,74 @@
 /**
- * Shared, runtime-independent contract for NPC generation.
+ * Shared, runtime-independent contract for definition-driven NPC generation.
  *
- * Validation functions return trimmed defensive copies and throw
- * ContractValidationError when the value is outside the contract.
+ * The model owns only names, token labels, and configured narrative values.
+ * Application IDs, slot numbers, and persistence metadata remain app-owned.
  */
 
-export const GENERATION_SCHEMA_VERSION = "1";
+export const GENERATION_SCHEMA_VERSION = "2";
 
-export const DEFAULT_CONTROLS = Object.freeze({
-  detail: 50,
-  socialDiversity: 50,
-  interconnectedness: 50,
-  familyDepth: 50,
-  eccentricity: 50,
-  danger: 50,
-  magic: 50,
-});
+export const CONTROL_TYPES = Object.freeze(["slider", "text"]);
 
-const CONTROL_NAMES = Object.freeze(Object.keys(DEFAULT_CONTROLS));
+export const DEFAULT_FIELD_DEFINITIONS = deepFreeze([
+  {
+    id: "social-role",
+    label: "Social Role",
+    description: "The NPC's place, status, and practical function in local society.",
+  },
+  {
+    id: "appearance",
+    label: "Appearance",
+    description: "Distinctive physical presentation, clothing, and immediately visible details.",
+  },
+  {
+    id: "personality",
+    label: "Personality",
+    description: "Temperament, virtues, faults, and how the NPC behaves around others.",
+  },
+  {
+    id: "mannerisms",
+    label: "Mannerisms",
+    description: "Memorable speech patterns, habits, gestures, and tells for roleplay.",
+  },
+  {
+    id: "background",
+    label: "Background",
+    description: "A concise personal history grounded in the described region and adventure.",
+  },
+  {
+    id: "family-tree",
+    label: "Family Tree",
+    description: "Synthetic relatives and their relationships. These people need not exist as Actors.",
+  },
+  {
+    id: "connections",
+    label: "Connections",
+    description: "Useful relationships, factions, obligations, or tensions involving the rest of the cast.",
+  },
+  {
+    id: "gm-notes",
+    label: "GM Notes",
+    description: "Secrets, motivations, complications, or hooks intended for the Gamemaster.",
+  },
+]);
+
+export const DEFAULT_CONTROL_DEFINITIONS = deepFreeze([
+  sliderControl("detail", "Detail", "How specific and developed each requested field should be.", 50),
+  sliderControl("social-diversity", "Social Diversity", "How varied the cast should be in status, work, outlook, and influence.", 50),
+  sliderControl("interconnectedness", "Interconnectedness", "How strongly NPC relationships should link the cast together.", 50),
+  sliderControl("family-depth", "Family Depth", "How much attention family history and relatives should receive.", 50),
+  sliderControl("eccentricity", "Eccentricity", "How unusual, surprising, or theatrical the cast should feel.", 50),
+  sliderControl("danger", "Danger", "How threatening, risky, or conflict-adjacent the cast should be.", 50),
+  sliderControl("magic", "Magic", "How present supernatural or magical elements should be.", 50),
+  {
+    id: "additional-direction",
+    label: "Additional Direction",
+    description: "Optional free-form guidance applied to the whole generated cast.",
+    type: "text",
+    value: "",
+  },
+]);
+
 const IDENTIFIER_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 const HTML_TAG_PATTERN = /<\/?[A-Za-z][^>]*>/;
 const URL_PATTERN = /(?:\b(?:https?|ftp|file):\/\/|\b(?:javascript|vbscript):|\bmailto:\S+|\bdata:[^\s,]*,|\bwww\.|\b(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/\S*)?)/i;
@@ -35,32 +86,21 @@ export const GENERATION_LIMITS = Object.freeze({
   excludedThemes: 100,
   excludedTheme: 240,
   npcs: 12,
+  fieldDefinitions: 16,
+  controlDefinitions: 16,
+  definitionId: 64,
+  definitionLabel: 80,
+  definitionDescription: 500,
+  controlText: 1_000,
+  fieldValue: 2_500,
+  failureMessage: 500,
+  fieldCellsPerBatch: 60,
   shortText: 240,
   mediumText: 1_000,
   longText: 2_500,
-  traits: 8,
-  mannerisms: 8,
-  motivations: 8,
-  tags: 12,
-  tag: 64,
-  familyMembers: 16,
-  familyRelationships: 24,
 });
 
 const LIMITS = GENERATION_LIMITS;
-
-const FAMILY_RELATIONSHIP_TYPES = Object.freeze([
-  "parentOf",
-  "childOf",
-  "siblingOf",
-  "spouseOf",
-  "partnerOf",
-  "guardianOf",
-  "wardOf",
-  "adoptiveParentOf",
-  "adoptiveChildOf",
-  "other",
-]);
 
 /** A validation failure at one or more contract paths. */
 export class ContractValidationError extends TypeError {
@@ -79,11 +119,9 @@ export class ContractValidationError extends TypeError {
 
 class ValidationContext {
   constructor() {
-    /** @type {{path: string, message: string}[]} */
     this.issues = [];
   }
 
-  /** @param {string} path @param {string} message */
   add(path, message) {
     this.issues.push({ path, message });
   }
@@ -95,12 +133,7 @@ class ValidationContext {
   }
 }
 
-/**
- * Validate and normalize a generation request.
- *
- * @param {unknown} value
- * @returns {GenerationRequest}
- */
+/** Validate and normalize a generation request. */
 export function validateGenerationRequest(value) {
   const context = new ValidationContext();
   const input = readRecord(context, value, "$", [
@@ -110,11 +143,11 @@ export function validateGenerationRequest(value) {
     "region",
     "prompt",
     "count",
+    "fields",
     "controls",
     "constraints",
     "generation",
   ]);
-
   const schemaVersion = readLiteral(
     context,
     input?.schemaVersion,
@@ -134,15 +167,14 @@ export function validateGenerationRequest(value) {
     max: LIMITS.prompt,
   });
   const count = readInteger(context, input?.count, "$.count", 1, LIMITS.npcs);
-  const controls = readControls(context, input?.controls);
+  const fields = readFieldDefinitions(context, input?.fields, "$.fields");
+  const controls = readControlDefinitions(context, input?.controls, "$.controls");
   const constraints = readConstraints(context, input?.constraints);
-  const generation =
-    input && Object.hasOwn(input, "generation")
-      ? readGenerationOptions(context, input.generation)
-      : undefined;
+  const generation = input && Object.hasOwn(input, "generation")
+    ? readGenerationOptions(context, input.generation)
+    : undefined;
 
   context.throwIfInvalid();
-
   return {
     schemaVersion,
     requestId,
@@ -150,36 +182,48 @@ export function validateGenerationRequest(value) {
     region,
     prompt,
     count,
+    fields,
     controls,
     constraints,
     ...(generation === undefined ? {} : { generation }),
   };
 }
 
-/**
- * Validate and normalize one application-assigned NPC draft.
- *
- * @param {unknown} value
- * @returns {NpcDraft}
- */
-export function validateNpcDraft(value) {
+/** Validate field definitions outside a complete request. */
+export function validateFieldDefinitions(value) {
   const context = new ValidationContext();
-  const draft = readNpcDraft(context, value, "$", { validateGraph: true });
+  const fields = readFieldDefinitions(context, value, "$");
+  context.throwIfInvalid();
+  return fields;
+}
+
+/** Validate control definitions and their current values. */
+export function validateControlDefinitions(value) {
+  const context = new ValidationContext();
+  const controls = readControlDefinitions(context, value, "$");
+  context.throwIfInvalid();
+  return controls;
+}
+
+/** Validate one application-assigned NPC draft against its field snapshot. */
+export function validateNpcDraft(value, fieldDefinitions) {
+  const context = new ValidationContext();
+  const fields = readFieldDefinitions(context, fieldDefinitions, "$.fieldDefinitions");
+  const draft = readNpcDraft(context, value, "$", fields);
   context.throwIfInvalid();
   return draft;
 }
 
-/**
- * Validate and normalize a completed generation result.
- *
- * @param {unknown} value
- * @returns {GenerationResult}
- */
+/** Validate and normalize a completed, possibly partial generation result. */
 export function validateGenerationResult(value) {
   const context = new ValidationContext();
   const input = readRecord(context, value, "$", [
     "schemaVersion",
+    "requestedCount",
+    "fields",
+    "controls",
     "npcs",
+    "failures",
     "provenance",
   ]);
   const schemaVersion = readLiteral(
@@ -188,16 +232,80 @@ export function validateGenerationResult(value) {
     "$.schemaVersion",
     GENERATION_SCHEMA_VERSION,
   );
-  const npcs = readNpcDraftArray(context, input?.npcs, "$.npcs");
+  const requestedCount = readInteger(
+    context,
+    input?.requestedCount,
+    "$.requestedCount",
+    1,
+    LIMITS.npcs,
+  );
+  const fields = readFieldDefinitions(context, input?.fields, "$.fields");
+  const controls = readControlDefinitions(context, input?.controls, "$.controls");
+  const npcs = readNpcDraftArray(context, input?.npcs, "$.npcs", fields, requestedCount);
+  const failures = readFailureArray(context, input?.failures, "$.failures", requestedCount);
   const provenance = readProvenance(context, input?.provenance);
 
   assertUniqueField(context, npcs, "id", "$.npcs");
   assertUniqueField(context, npcs, "key", "$.npcs");
+  assertUniqueField(context, npcs, "slot", "$.npcs");
   assertUniqueField(context, npcs, "name", "$.npcs");
   assertUniqueField(context, npcs, "tokenLabel", "$.npcs");
+  assertUniqueField(context, failures, "slot", "$.failures");
+  validateResultCoverage(context, { npcs, failures, requestedCount });
   context.throwIfInvalid();
 
-  return { schemaVersion, npcs, provenance };
+  return {
+    schemaVersion,
+    requestedCount,
+    fields,
+    controls,
+    npcs,
+    failures,
+    provenance,
+  };
+}
+
+/** JSON Schema for one model-owned NPC candidate. */
+export function createModelNpcJsonSchema(fieldDefinitions) {
+  const fields = validateFieldDefinitions(fieldDefinitions);
+  const fieldProperties = Object.fromEntries(
+    fields.map(({ id }) => [id, boundedString(1, LIMITS.fieldValue)]),
+  );
+  return deepFreeze({
+    type: "object",
+    additionalProperties: false,
+    required: ["name", "tokenLabel", "fields"],
+    properties: {
+      name: boundedString(1, LIMITS.name),
+      tokenLabel: boundedString(1, LIMITS.name),
+      fields: {
+        type: "object",
+        additionalProperties: false,
+        required: fields.map(({ id }) => id),
+        properties: fieldProperties,
+      },
+    },
+  });
+}
+
+/** JSON Schema for one requested cast batch. */
+export function createCastModelJsonSchema(fieldDefinitions, count) {
+  if (!Number.isInteger(count) || count < 1 || count > LIMITS.npcs) {
+    throw new RangeError(`Cast batch count must be between 1 and ${LIMITS.npcs}.`);
+  }
+  return deepFreeze({
+    type: "object",
+    additionalProperties: false,
+    required: ["npcs"],
+    properties: {
+      npcs: {
+        type: "array",
+        minItems: count,
+        maxItems: count,
+        items: createModelNpcJsonSchema(fieldDefinitions),
+      },
+    },
+  });
 }
 
 function readScene(context, value) {
@@ -218,15 +326,13 @@ function readRegion(context, value) {
     "name",
     "description",
   ]);
-  const uuid =
-    input?.uuid === null
-      ? null
-      : readIdentifier(context, input?.uuid, "$.region.uuid", LIMITS.uuid);
-  const regionNameMinimum = uuid === null ? 0 : 1;
+  const uuid = input?.uuid === null
+    ? null
+    : readIdentifier(context, input?.uuid, "$.region.uuid", LIMITS.uuid);
   return {
     uuid,
     name: readPlainText(context, input?.name, "$.region.name", {
-      min: regionNameMinimum,
+      min: uuid === null ? 0 : 1,
       max: LIMITS.name,
       singleLine: true,
     }),
@@ -239,14 +345,69 @@ function readRegion(context, value) {
   };
 }
 
-function readControls(context, value) {
-  const input = readRecord(context, value, "$.controls", CONTROL_NAMES);
-  return Object.fromEntries(
-    CONTROL_NAMES.map((name) => [
-      name,
-      readInteger(context, input?.[name], `$.controls.${name}`, 0, 100),
-    ]),
+function readFieldDefinitions(context, value, path) {
+  const definitions = readObjectArray(
+    context,
+    value,
+    path,
+    { minItems: 1, maxItems: LIMITS.fieldDefinitions },
+    (definition, definitionPath) => readDefinition(context, definition, definitionPath),
   );
+  assertUniqueField(context, definitions, "id", path);
+  assertUniqueField(context, definitions, "label", path);
+  return definitions;
+}
+
+function readControlDefinitions(context, value, path) {
+  const definitions = readObjectArray(
+    context,
+    value,
+    path,
+    { minItems: 0, maxItems: LIMITS.controlDefinitions },
+    (definition, definitionPath) => readControlDefinition(context, definition, definitionPath),
+  );
+  assertUniqueField(context, definitions, "id", path);
+  assertUniqueField(context, definitions, "label", path);
+  return definitions;
+}
+
+function readDefinition(context, value, path) {
+  const input = readRecord(context, value, path, ["id", "label", "description"]);
+  return readDefinitionFields(context, input, path);
+}
+
+function readDefinitionFields(context, input, path) {
+  return {
+    id: readIdentifier(context, input?.id, `${path}.id`, LIMITS.definitionId),
+    label: readPlainText(context, input?.label, `${path}.label`, {
+      min: 1,
+      max: LIMITS.definitionLabel,
+      singleLine: true,
+    }),
+    description: readPlainText(context, input?.description, `${path}.description`, {
+      min: 1,
+      max: LIMITS.definitionDescription,
+    }),
+  };
+}
+
+function readControlDefinition(context, value, path) {
+  const input = readRecord(context, value, path, [
+    "id",
+    "label",
+    "description",
+    "type",
+    "value",
+  ]);
+  const base = readDefinitionFields(context, input, path);
+  const type = readEnum(context, input?.type, `${path}.type`, CONTROL_TYPES);
+  const controlValue = type === "slider"
+    ? readInteger(context, input?.value, `${path}.value`, 0, 100)
+    : readPlainText(context, input?.value, `${path}.value`, {
+      min: 0,
+      max: LIMITS.controlText,
+    });
+  return { ...base, type, value: controlValue };
 }
 
 function readConstraints(context, value) {
@@ -254,34 +415,33 @@ function readConstraints(context, value) {
     "existingNames",
     "excludedThemes",
   ]);
-  const existingNames = readPlainTextArray(
-    context,
-    input?.existingNames,
-    "$.constraints.existingNames",
-    {
-      maxItems: LIMITS.existingNames,
-      itemMax: LIMITS.name,
-      singleLine: true,
-    },
-  );
-  const excludedThemes = readPlainTextArray(
-    context,
-    input?.excludedThemes,
-    "$.constraints.excludedThemes",
-    {
-      maxItems: LIMITS.excludedThemes,
-      itemMax: LIMITS.excludedTheme,
-      singleLine: true,
-    },
-  );
-  return { existingNames, excludedThemes };
+  return {
+    existingNames: readPlainTextArray(
+      context,
+      input?.existingNames,
+      "$.constraints.existingNames",
+      {
+        maxItems: LIMITS.existingNames,
+        itemMax: LIMITS.name,
+        singleLine: true,
+      },
+    ),
+    excludedThemes: readPlainTextArray(
+      context,
+      input?.excludedThemes,
+      "$.constraints.excludedThemes",
+      {
+        maxItems: LIMITS.excludedThemes,
+        itemMax: LIMITS.excludedTheme,
+        singleLine: true,
+      },
+    ),
+  };
 }
 
 function readGenerationOptions(context, value) {
   const input = readRecord(context, value, "$.generation", ["seed"]);
-  if (!input || !Object.hasOwn(input, "seed")) {
-    return {};
-  }
+  if (!input || !Object.hasOwn(input, "seed")) return {};
   return {
     seed: readInteger(
       context,
@@ -293,173 +453,71 @@ function readGenerationOptions(context, value) {
   };
 }
 
-function readNpcDraftArray(context, value, path) {
-  if (!Array.isArray(value)) {
-    context.add(path, "must be an array");
-    return [];
-  }
-  if (value.length < 1 || value.length > LIMITS.npcs) {
-    context.add(path, `must contain between 1 and ${LIMITS.npcs} NPCs`);
-  }
-  return value.map((draft, index) =>
-    readNpcDraft(context, draft, `${path}[${index}]`, { validateGraph: true }),
+function readNpcDraftArray(context, value, path, fields, requestedCount) {
+  return readObjectArray(
+    context,
+    value,
+    path,
+    { minItems: 1, maxItems: requestedCount },
+    (draft, draftPath) => readNpcDraft(context, draft, draftPath, fields),
   );
 }
 
-function readNpcDraft(context, value, path, { validateGraph }) {
+function readNpcDraft(context, value, path, fieldDefinitions) {
   const input = readRecord(context, value, path, [
     "id",
     "key",
+    "slot",
     "name",
     "tokenLabel",
-    "socialRole",
-    "occupation",
-    "appearance",
-    "personalityTraits",
-    "ideal",
-    "bond",
-    "flaw",
-    "mannerisms",
-    "motivations",
-    "publicBiography",
-    "gmSecret",
-    "complication",
-    "faction",
-    "family",
-    "tags",
+    "fields",
   ]);
-  const family = readFamily(context, input?.family, `${path}.family`);
-  if (validateGraph) {
-    validateFamilyGraph(context, family, `${path}.family`);
-  }
-
+  const fieldIds = fieldDefinitions.map(({ id }) => id);
+  const fieldInput = readRecord(context, input?.fields, `${path}.fields`, fieldIds);
+  const fields = Object.fromEntries(
+    fieldIds.map((id) => [
+      id,
+      readPlainText(context, fieldInput?.[id], `${path}.fields.${id}`, {
+        min: 1,
+        max: LIMITS.fieldValue,
+        generatedContent: true,
+      }),
+    ]),
+  );
   return {
     id: readIdentifier(context, input?.id, `${path}.id`, LIMITS.uuid),
     key: readIdentifier(context, input?.key, `${path}.key`, LIMITS.uuid),
-    name: readShortText(context, input?.name, `${path}.name`),
-    tokenLabel: readShortText(context, input?.tokenLabel, `${path}.tokenLabel`),
-    socialRole: readShortText(context, input?.socialRole, `${path}.socialRole`),
-    occupation: readShortText(context, input?.occupation, `${path}.occupation`),
-    appearance: readPlainText(context, input?.appearance, `${path}.appearance`, {
-      min: 1,
-      max: LIMITS.mediumText,
-      generatedContent: true,
-    }),
-    personalityTraits: readPlainTextArray(
+    slot: readInteger(context, input?.slot, `${path}.slot`, 1, LIMITS.npcs),
+    name: readGeneratedSingleLine(context, input?.name, `${path}.name`, LIMITS.name),
+    tokenLabel: readGeneratedSingleLine(
       context,
-      input?.personalityTraits,
-      `${path}.personalityTraits`,
-      {
-        minItems: 1,
-        maxItems: LIMITS.traits,
-        itemMax: LIMITS.shortText,
-        generatedContent: true,
-      },
+      input?.tokenLabel,
+      `${path}.tokenLabel`,
+      LIMITS.name,
     ),
-    ideal: readShortText(context, input?.ideal, `${path}.ideal`),
-    bond: readShortText(context, input?.bond, `${path}.bond`),
-    flaw: readShortText(context, input?.flaw, `${path}.flaw`),
-    mannerisms: readPlainTextArray(
-      context,
-      input?.mannerisms,
-      `${path}.mannerisms`,
-      {
-        minItems: 1,
-        maxItems: LIMITS.mannerisms,
-        itemMax: LIMITS.shortText,
-        generatedContent: true,
-      },
-    ),
-    motivations: readPlainTextArray(
-      context,
-      input?.motivations,
-      `${path}.motivations`,
-      {
-        minItems: 1,
-        maxItems: LIMITS.motivations,
-        itemMax: LIMITS.shortText,
-        generatedContent: true,
-      },
-    ),
-    publicBiography: readPlainText(
-      context,
-      input?.publicBiography,
-      `${path}.publicBiography`,
-      { min: 1, max: LIMITS.longText, generatedContent: true },
-    ),
-    gmSecret: readPlainText(context, input?.gmSecret, `${path}.gmSecret`, {
-      min: 0,
-      max: LIMITS.longText,
-      generatedContent: true,
-    }),
-    complication: readPlainText(
-      context,
-      input?.complication,
-      `${path}.complication`,
-      { min: 0, max: LIMITS.mediumText, generatedContent: true },
-    ),
-    faction: readPlainText(context, input?.faction, `${path}.faction`, {
-      min: 0,
-      max: LIMITS.shortText,
-      singleLine: true,
-      generatedContent: true,
-    }),
-    family,
-    tags: readPlainTextArray(context, input?.tags, `${path}.tags`, {
-      maxItems: LIMITS.tags,
-      itemMax: LIMITS.tag,
-      singleLine: true,
-      generatedContent: true,
-    }),
+    fields,
   };
 }
 
-function readFamily(context, value, path) {
-  const input = readRecord(context, value, path, ["members", "relationships"]);
-  const members = readObjectArray(
+function readFailureArray(context, value, path, requestedCount) {
+  return readObjectArray(
     context,
-    input?.members,
-    `${path}.members`,
-    LIMITS.familyMembers,
-    (member, memberPath) => readFamilyMember(context, member, memberPath),
+    value,
+    path,
+    { minItems: 0, maxItems: requestedCount },
+    (failure, failurePath) => {
+      const input = readRecord(context, failure, failurePath, ["slot", "code", "message"]);
+      return {
+        slot: readInteger(context, input?.slot, `${failurePath}.slot`, 1, requestedCount),
+        code: readIdentifier(context, input?.code, `${failurePath}.code`, 80),
+        message: readPlainText(context, input?.message, `${failurePath}.message`, {
+          min: 1,
+          max: LIMITS.failureMessage,
+          singleLine: true,
+        }),
+      };
+    },
   );
-  const relationships = readObjectArray(
-    context,
-    input?.relationships,
-    `${path}.relationships`,
-    LIMITS.familyRelationships,
-    (relationship, relationshipPath) =>
-      readFamilyRelationship(context, relationship, relationshipPath),
-  );
-  return { members, relationships };
-}
-
-function readFamilyMember(context, value, path) {
-  const input = readRecord(context, value, path, ["key", "name", "description"]);
-  return {
-    key: readIdentifier(context, input?.key, `${path}.key`, LIMITS.uuid),
-    name: readShortText(context, input?.name, `${path}.name`),
-    description: readPlainText(
-      context,
-      input?.description,
-      `${path}.description`,
-      { min: 0, max: LIMITS.mediumText, generatedContent: true },
-    ),
-  };
-}
-
-function readFamilyRelationship(context, value, path) {
-  const input = readRecord(context, value, path, ["fromKey", "toKey", "type"]);
-  return {
-    fromKey: readIdentifier(context, input?.fromKey, `${path}.fromKey`, LIMITS.uuid),
-    toKey: readIdentifier(context, input?.toKey, `${path}.toKey`, LIMITS.uuid),
-    type: readEnum(
-      context,
-      input?.type,
-      `${path}.type`,
-      FAMILY_RELATIONSHIP_TYPES,
-    ),
-  };
 }
 
 function readProvenance(context, value) {
@@ -470,8 +528,8 @@ function readProvenance(context, value) {
     "modelDigest",
   ]);
   return {
-    provider: readShortText(context, input?.provider, "$.provenance.provider"),
-    model: readShortText(context, input?.model, "$.provenance.model"),
+    provider: readGeneratedSingleLine(context, input?.provider, "$.provenance.provider", LIMITS.shortText),
+    model: readGeneratedSingleLine(context, input?.model, "$.provenance.model", LIMITS.shortText),
     promptTemplateVersion: readIdentifier(
       context,
       input?.promptTemplateVersion,
@@ -491,76 +549,25 @@ function readProvenance(context, value) {
   };
 }
 
-function validateFamilyGraph(context, family, path) {
-  assertUniqueField(context, family.members, "key", `${path}.members`);
-  const memberKeys = new Set(family.members.map(({ key }) => key));
-  const seenRelationships = new Set();
-  /** @type {Map<string, Set<string>>} */
-  const parentEdges = new Map();
-
-  family.relationships.forEach((relationship, index) => {
-    const relationshipPath = `${path}.relationships[${index}]`;
-    if (!memberKeys.has(relationship.fromKey)) {
-      context.add(`${relationshipPath}.fromKey`, "must reference a family member");
-    }
-    if (!memberKeys.has(relationship.toKey)) {
-      context.add(`${relationshipPath}.toKey`, "must reference a family member");
-    }
-    if (relationship.fromKey === relationship.toKey) {
-      context.add(relationshipPath, "must not relate a member to itself");
-    }
-
-    const signature = [
-      relationship.fromKey,
-      relationship.toKey,
-      relationship.type,
-    ].join("\u0000");
-    if (seenRelationships.has(signature)) {
-      context.add(relationshipPath, "duplicates an earlier relationship");
-    }
-    seenRelationships.add(signature);
-
-    const parentEdge = asParentEdge(relationship);
-    if (parentEdge) {
-      const [parent, child] = parentEdge;
-      const children = parentEdges.get(parent) ?? new Set();
-      children.add(child);
-      parentEdges.set(parent, children);
-    }
-  });
-
-  if (hasDirectedCycle(parentEdges)) {
-    context.add(`${path}.relationships`, "parent-child relationships must be acyclic");
+function validateResultCoverage(context, { npcs, failures, requestedCount }) {
+  if (npcs.length + failures.length !== requestedCount) {
+    context.add(
+      "$",
+      "must account for every requested slot with either an NPC or a failure",
+    );
   }
-}
-
-function asParentEdge({ fromKey, toKey, type }) {
-  if (type === "parentOf" || type === "adoptiveParentOf") {
-    return [fromKey, toKey];
-  }
-  if (type === "childOf" || type === "adoptiveChildOf") {
-    return [toKey, fromKey];
-  }
-  return null;
-}
-
-function hasDirectedCycle(edges) {
-  const visiting = new Set();
-  const visited = new Set();
-
-  function visit(node) {
-    if (visiting.has(node)) return true;
-    if (visited.has(node)) return false;
-    visiting.add(node);
-    for (const child of edges.get(node) ?? []) {
-      if (visit(child)) return true;
+  const completedSlots = new Set(npcs.map(({ slot }) => slot));
+  for (const failure of failures) {
+    if (completedSlots.has(failure.slot)) {
+      context.add("$.failures", `slot ${failure.slot} is both successful and failed`);
     }
-    visiting.delete(node);
-    visited.add(node);
-    return false;
+    completedSlots.add(failure.slot);
   }
-
-  return [...edges.keys()].some(visit);
+  for (let slot = 1; slot <= requestedCount; slot += 1) {
+    if (!completedSlots.has(slot)) {
+      context.add("$", `does not account for requested slot ${slot}`);
+    }
+  }
 }
 
 function readRecord(context, value, path, allowedKeys) {
@@ -568,7 +575,7 @@ function readRecord(context, value, path, allowedKeys) {
     context.add(path, "must be an object");
     return null;
   }
-  const input = /** @type {Record<string, unknown>} */ (value);
+  const input = value;
   for (const key of Object.keys(input)) {
     if (!allowedKeys.includes(key)) {
       context.add(`${path}.${key}`, "is not allowed");
@@ -578,12 +585,7 @@ function readRecord(context, value, path, allowedKeys) {
 }
 
 function readPlainText(context, value, path, options) {
-  const {
-    min,
-    max,
-    singleLine = false,
-    generatedContent = false,
-  } = options;
+  const { min, max, singleLine = false, generatedContent = false } = options;
   if (typeof value !== "string") {
     context.add(path, "must be a string");
     return "";
@@ -610,10 +612,10 @@ function readPlainText(context, value, path, options) {
   return normalized;
 }
 
-function readShortText(context, value, path) {
+function readGeneratedSingleLine(context, value, path, max) {
   return readPlainText(context, value, path, {
     min: 1,
-    max: LIMITS.shortText,
+    max,
     singleLine: true,
     generatedContent: true,
   });
@@ -637,7 +639,6 @@ function readIdentifier(context, value, path, maxLength) {
 function readLiteral(context, value, path, expected) {
   if (value !== expected) {
     context.add(path, `must equal ${JSON.stringify(expected)}`);
-    return expected;
   }
   return expected;
 }
@@ -659,13 +660,7 @@ function readEnum(context, value, path, allowedValues) {
 }
 
 function readPlainTextArray(context, value, path, options) {
-  const {
-    minItems = 0,
-    maxItems,
-    itemMax,
-    singleLine = false,
-    generatedContent = false,
-  } = options;
+  const { minItems = 0, maxItems, itemMax, singleLine = false } = options;
   if (!Array.isArray(value)) {
     context.add(path, "must be an array");
     return [];
@@ -678,20 +673,19 @@ function readPlainTextArray(context, value, path, options) {
       min: 1,
       max: itemMax,
       singleLine,
-      generatedContent,
     }),
   );
   assertUniqueStrings(context, result, path);
   return result;
 }
 
-function readObjectArray(context, value, path, maxItems, readItem) {
+function readObjectArray(context, value, path, { minItems, maxItems }, readItem) {
   if (!Array.isArray(value)) {
     context.add(path, "must be an array");
     return [];
   }
-  if (value.length > maxItems) {
-    context.add(path, `must contain at most ${maxItems} items`);
+  if (value.length < minItems || value.length > maxItems) {
+    context.add(path, `must contain between ${minItems} and ${maxItems} items`);
   }
   return value.map((item, index) => readItem(item, `${path}[${index}]`));
 }
@@ -711,10 +705,9 @@ function assertUniqueField(context, values, field, path) {
   const seen = new Set();
   values.forEach((value, index) => {
     const candidate = value[field];
-    const key =
-      typeof candidate === "string"
-        ? candidate.toLocaleLowerCase("en-US")
-        : candidate;
+    const key = typeof candidate === "string"
+      ? candidate.toLocaleLowerCase("en-US")
+      : candidate;
     if (seen.has(key)) {
       context.add(`${path}[${index}].${field}`, `duplicates an earlier ${field}`);
     }
@@ -722,104 +715,13 @@ function assertUniqueField(context, values, field, path) {
   });
 }
 
-const boundedString = (minLength, maxLength) => ({
-  type: "string",
-  minLength,
-  maxLength,
-});
+function sliderControl(id, label, description, value) {
+  return { id, label, description, type: "slider", value };
+}
 
-const stringArraySchema = (minItems, maxItems, itemMaxLength) => ({
-  type: "array",
-  minItems,
-  maxItems,
-  items: boundedString(1, itemMaxLength),
-});
-
-const familyMemberSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["key", "name", "description"],
-  properties: {
-    key: boundedString(1, LIMITS.uuid),
-    name: boundedString(1, LIMITS.shortText),
-    description: boundedString(0, LIMITS.mediumText),
-  },
-};
-
-const familyRelationshipSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["fromKey", "toKey", "type"],
-  properties: {
-    fromKey: boundedString(1, LIMITS.uuid),
-    toKey: boundedString(1, LIMITS.uuid),
-    type: { type: "string", enum: [...FAMILY_RELATIONSHIP_TYPES] },
-  },
-};
-
-/** JSON Schema supplied to structured-output providers for a single NPC. */
-export const NPC_DRAFT_JSON_SCHEMA = deepFreeze({
-  type: "object",
-  additionalProperties: false,
-  required: [
-    "id",
-    "key",
-    "name",
-    "tokenLabel",
-    "socialRole",
-    "occupation",
-    "appearance",
-    "personalityTraits",
-    "ideal",
-    "bond",
-    "flaw",
-    "mannerisms",
-    "motivations",
-    "publicBiography",
-    "gmSecret",
-    "complication",
-    "faction",
-    "family",
-    "tags",
-  ],
-  properties: {
-    id: boundedString(1, LIMITS.uuid),
-    key: boundedString(1, LIMITS.uuid),
-    name: boundedString(1, LIMITS.shortText),
-    tokenLabel: boundedString(1, LIMITS.shortText),
-    socialRole: boundedString(1, LIMITS.shortText),
-    occupation: boundedString(1, LIMITS.shortText),
-    appearance: boundedString(1, LIMITS.mediumText),
-    personalityTraits: stringArraySchema(1, LIMITS.traits, LIMITS.shortText),
-    ideal: boundedString(1, LIMITS.shortText),
-    bond: boundedString(1, LIMITS.shortText),
-    flaw: boundedString(1, LIMITS.shortText),
-    mannerisms: stringArraySchema(1, LIMITS.mannerisms, LIMITS.shortText),
-    motivations: stringArraySchema(1, LIMITS.motivations, LIMITS.shortText),
-    publicBiography: boundedString(1, LIMITS.longText),
-    gmSecret: boundedString(0, LIMITS.longText),
-    complication: boundedString(0, LIMITS.mediumText),
-    faction: boundedString(0, LIMITS.shortText),
-    family: {
-      type: "object",
-      additionalProperties: false,
-      required: ["members", "relationships"],
-      properties: {
-        members: {
-          type: "array",
-          maxItems: LIMITS.familyMembers,
-          items: familyMemberSchema,
-        },
-        relationships: {
-          type: "array",
-          maxItems: LIMITS.familyRelationships,
-          items: familyRelationshipSchema,
-        },
-      },
-    },
-    tags: stringArraySchema(0, LIMITS.tags, LIMITS.tag),
-  },
-});
+function boundedString(minLength, maxLength) {
+  return { type: "string", minLength, maxLength };
+}
 
 function deepFreeze(value) {
   if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
@@ -829,13 +731,14 @@ function deepFreeze(value) {
 
 /**
  * @typedef {object} GenerationRequest
- * @property {"1"} schemaVersion
+ * @property {"2"} schemaVersion
  * @property {string} requestId
  * @property {{uuid: string, name: string}} scene
  * @property {{uuid: string|null, name: string, description: string}} region
  * @property {string} prompt
  * @property {number} count
- * @property {Record<string, number>} controls
+ * @property {{id:string,label:string,description:string}[]} fields
+ * @property {{id:string,label:string,description:string,type:"slider"|"text",value:number|string}[]} controls
  * @property {{existingNames: string[], excludedThemes: string[]}} constraints
  * @property {{seed?: number}=} generation
  */
@@ -844,28 +747,8 @@ function deepFreeze(value) {
  * @typedef {object} NpcDraft
  * @property {string} id
  * @property {string} key
+ * @property {number} slot
  * @property {string} name
  * @property {string} tokenLabel
- * @property {string} socialRole
- * @property {string} occupation
- * @property {string} appearance
- * @property {string[]} personalityTraits
- * @property {string} ideal
- * @property {string} bond
- * @property {string} flaw
- * @property {string[]} mannerisms
- * @property {string[]} motivations
- * @property {string} publicBiography
- * @property {string} gmSecret
- * @property {string} complication
- * @property {string} faction
- * @property {{members: {key:string,name:string,description:string}[], relationships: {fromKey:string,toKey:string,type:string}[]}} family
- * @property {string[]} tags
- */
-
-/**
- * @typedef {object} GenerationResult
- * @property {"1"} schemaVersion
- * @property {NpcDraft[]} npcs
- * @property {{provider:string,model:string,promptTemplateVersion:string,modelDigest?:string}} provenance
+ * @property {Record<string,string>} fields
  */

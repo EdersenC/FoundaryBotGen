@@ -92,16 +92,76 @@
       </fieldset>
 
       <fieldset>
-        <legend>{{localize "foundry-npcbot.generator.controlsLegend"}}</legend>
-        <div class="npcbot-sliders">
-          {{#each controls}}
-            <label class="npcbot-slider">
-              <span>{{label}}</span>
-              <input type="range" name="controls.{{key}}" value="{{value}}" min="{{min}}" max="{{max}}" step="{{step}}">
-              <output>{{value}}</output>
-            </label>
+        <legend>{{localize "foundry-npcbot.definitions.fieldsLegend"}}</legend>
+        <p class="hint">{{localize "foundry-npcbot.definitions.fieldsRunHint"}}</p>
+        <div class="npcbot-definitions">
+          {{#each fields}}
+            <article class="npcbot-definition">
+              <input type="hidden" name="fields.{{index}}.id" value="{{id}}">
+              <label class="npcbot-field">
+                <span>{{localize "foundry-npcbot.definitions.label"}}</span>
+                <input name="fields.{{index}}.label" value="{{label}}" maxlength="{{../limits.definitionLabel}}" required>
+              </label>
+              <label class="npcbot-field">
+                <span>{{localize "foundry-npcbot.definitions.description"}}</span>
+                <textarea name="fields.{{index}}.description" rows="2" maxlength="{{../limits.definitionDescription}}" required>{{description}}</textarea>
+              </label>
+              <button type="button" class="npcbot-icon-button npcbot-danger" data-action="removeField" data-index="{{index}}" title="{{localize 'foundry-npcbot.definitions.removeField'}}" {{#if @first}}{{#if @last}}disabled{{/if}}{{/if}}>
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </article>
           {{/each}}
         </div>
+        <button type="button" class="npcbot-secondary" data-action="addField" {{#unless canAddField}}disabled{{/unless}}>
+          <i class="fa-solid fa-plus"></i> {{localize "foundry-npcbot.definitions.addField"}}
+        </button>
+      </fieldset>
+
+      <fieldset>
+        <legend>{{localize "foundry-npcbot.definitions.controlsLegend"}}</legend>
+        <p class="hint">{{localize "foundry-npcbot.definitions.controlsRunHint"}}</p>
+        <div class="npcbot-definitions">
+          {{#each controls}}
+            <article class="npcbot-definition">
+              <input type="hidden" name="controls.{{index}}.id" value="{{id}}">
+              <div class="npcbot-grid-two">
+                <label class="npcbot-field">
+                  <span>{{localize "foundry-npcbot.definitions.label"}}</span>
+                  <input name="controls.{{index}}.label" value="{{label}}" maxlength="{{../limits.definitionLabel}}" required>
+                </label>
+                <label class="npcbot-field">
+                  <span>{{localize "foundry-npcbot.definitions.controlType"}}</span>
+                  <select name="controls.{{index}}.type" data-control-type>
+                    <option value="slider" {{#if isSlider}}selected{{/if}}>{{localize "foundry-npcbot.definitions.slider"}}</option>
+                    <option value="text" {{#if isText}}selected{{/if}}>{{localize "foundry-npcbot.definitions.text"}}</option>
+                  </select>
+                </label>
+              </div>
+              <label class="npcbot-field">
+                <span>{{localize "foundry-npcbot.definitions.description"}}</span>
+                <textarea name="controls.{{index}}.description" rows="2" maxlength="{{../limits.definitionDescription}}" required>{{description}}</textarea>
+              </label>
+              {{#if isSlider}}
+                <label class="npcbot-slider">
+                  <span>{{label}}</span>
+                  <input type="range" name="controls.{{index}}.value" value="{{value}}" min="0" max="100" step="1">
+                  <output>{{value}}</output>
+                </label>
+              {{else}}
+                <label class="npcbot-field">
+                  <span>{{label}}</span>
+                  <textarea name="controls.{{index}}.value" rows="3" maxlength="{{../limits.controlText}}">{{value}}</textarea>
+                </label>
+              {{/if}}
+              <button type="button" class="npcbot-icon-button npcbot-danger" data-action="removeControl" data-index="{{index}}" title="{{localize 'foundry-npcbot.definitions.removeControl'}}">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </article>
+          {{/each}}
+        </div>
+        <button type="button" class="npcbot-secondary" data-action="addControl" {{#unless canAddControl}}disabled{{/unless}}>
+          <i class="fa-solid fa-plus"></i> {{localize "foundry-npcbot.definitions.addControl"}}
+        </button>
       </fieldset>
     </div>
     <footer class="npcbot-actions">
@@ -133,36 +193,35 @@
         <h2>{{localize "foundry-npcbot.review.title"}}</h2>
         <p class="hint">{{localize "foundry-npcbot.review.hint"}}</p>
       </header>
+      {{#if hasGenerationFailures}}
+        <div class="npcbot-callout npcbot-callout--warning" role="status">
+          <h3><i class="fa-solid fa-triangle-exclamation"></i> {{localize "foundry-npcbot.review.partialTitle"}}</h3>
+          <p>{{localize "foundry-npcbot.review.partialHint"}}</p>
+          <ul>
+            {{#each generationFailures}}
+              <li><strong>Slot {{slot}}</strong> <code>{{code}}</code> — {{message}}</li>
+            {{/each}}
+          </ul>
+        </div>
+      {{/if}}
       <div class="npcbot-review__list">
         {{#each drafts}}
           <article class="npcbot-npc-card">
             <label class="npcbot-npc-card__include">
               <input type="checkbox" name="include.{{index}}" checked>
-              {{localize "foundry-npcbot.review.approveNpc"}}
+              {{localize "foundry-npcbot.review.approveNpc"}} (slot {{slot}})
             </label>
             <div class="npcbot-grid-two">
-              <label class="npcbot-field"><span>{{localize "foundry-npcbot.review.name"}}</span><input name="npcs.{{index}}.name" value="{{name}}" maxlength="{{../limits.shortText}}" required></label>
-              <label class="npcbot-field"><span>{{localize "foundry-npcbot.review.tokenLabel"}}</span><input name="npcs.{{index}}.tokenLabel" value="{{tokenLabel}}" maxlength="{{../limits.shortText}}" required></label>
-              <label class="npcbot-field"><span>{{localize "foundry-npcbot.review.socialRole"}}</span><input name="npcs.{{index}}.socialRole" value="{{socialRole}}" maxlength="{{../limits.shortText}}" required></label>
-              <label class="npcbot-field"><span>{{localize "foundry-npcbot.review.occupation"}}</span><input name="npcs.{{index}}.occupation" value="{{occupation}}" maxlength="{{../limits.shortText}}" required></label>
-              <label class="npcbot-field"><span>{{localize "foundry-npcbot.review.ideal"}}</span><input name="npcs.{{index}}.ideal" value="{{ideal}}" maxlength="{{../limits.shortText}}" required></label>
-              <label class="npcbot-field"><span>{{localize "foundry-npcbot.review.bond"}}</span><input name="npcs.{{index}}.bond" value="{{bond}}" maxlength="{{../limits.shortText}}" required></label>
-              <label class="npcbot-field"><span>{{localize "foundry-npcbot.review.flaw"}}</span><input name="npcs.{{index}}.flaw" value="{{flaw}}" maxlength="{{../limits.shortText}}" required></label>
-              <label class="npcbot-field"><span>{{localize "foundry-npcbot.review.faction"}}</span><input name="npcs.{{index}}.faction" value="{{faction}}" maxlength="{{../limits.shortText}}"></label>
+              <label class="npcbot-field"><span>{{localize "foundry-npcbot.review.name"}}</span><input name="npcs.{{index}}.name" value="{{name}}" maxlength="{{../limits.name}}" required></label>
+              <label class="npcbot-field"><span>{{localize "foundry-npcbot.review.tokenLabel"}}</span><input name="npcs.{{index}}.tokenLabel" value="{{tokenLabel}}" maxlength="{{../limits.name}}" required></label>
             </div>
-            <label class="npcbot-field"><span>{{localize "foundry-npcbot.review.appearance"}}</span><textarea name="npcs.{{index}}.appearance" rows="3" maxlength="{{../limits.mediumText}}" required>{{appearance}}</textarea></label>
-            <label class="npcbot-field"><span>{{localize "foundry-npcbot.review.personalityTraits"}}</span><textarea name="npcs.{{index}}.personalityTraits" rows="3" maxlength="{{../limits.listText}}" required>{{personalityTraits}}</textarea></label>
-            <label class="npcbot-field"><span>{{localize "foundry-npcbot.review.mannerisms"}}</span><textarea name="npcs.{{index}}.mannerisms" rows="3" maxlength="{{../limits.listText}}" required>{{mannerisms}}</textarea></label>
-            <label class="npcbot-field"><span>{{localize "foundry-npcbot.review.motivations"}}</span><textarea name="npcs.{{index}}.motivations" rows="3" maxlength="{{../limits.listText}}" required>{{motivations}}</textarea></label>
-            <label class="npcbot-field"><span>{{localize "foundry-npcbot.review.publicBiography"}}</span><textarea name="npcs.{{index}}.publicBiography" rows="3" maxlength="{{../limits.longText}}" required>{{publicBiography}}</textarea></label>
-            <label class="npcbot-field"><span>{{localize "foundry-npcbot.review.gmSecret"}}</span><textarea name="npcs.{{index}}.gmSecret" rows="3" maxlength="{{../limits.longText}}">{{gmSecret}}</textarea></label>
-            <label class="npcbot-field"><span>{{localize "foundry-npcbot.review.complication"}}</span><textarea name="npcs.{{index}}.complication" rows="3" maxlength="{{../limits.mediumText}}">{{complication}}</textarea></label>
-            {{#if familySummary}}
-              <details>
-                <summary>{{localize "foundry-npcbot.review.family"}}</summary>
-                <pre>{{familySummary}}</pre>
-              </details>
-            {{/if}}
+            {{#each fields}}
+              <label class="npcbot-field">
+                <span>{{label}}</span>
+                <small>{{description}}</small>
+                <textarea name="npcs.{{../index}}.fields.{{id}}" rows="4" maxlength="{{../../limits.fieldValue}}" required>{{value}}</textarea>
+              </label>
+            {{/each}}
           </article>
         {{/each}}
       </div>

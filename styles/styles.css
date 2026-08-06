@@ -145,6 +145,16 @@
   border: 1px solid var(--color-level-error-border);
 }
 
+.npcbot-callout--warning {
+  color: var(--color-level-warning);
+  background: var(--color-level-warning-bg);
+  border: 1px solid var(--color-level-warning-border);
+}
+
+.npcbot-callout--warning h3 {
+  margin: 0 0 0.5rem;
+}
+
 .npcbot-callout--error h3 {
   margin: 0 0 0.5rem;
 }
@@ -263,6 +273,36 @@
 .npcbot-npc-card pre {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.npcbot-definitions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.npcbot-definition {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0.75rem 3rem 0.75rem 0.75rem;
+  border: 1px solid var(--color-border-light-primary);
+  border-radius: 0.4rem;
+}
+
+.npcbot-definition .npcbot-icon-button {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+}
+
+.npcbot-icon-button {
+  width: 2rem;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0;
 }
 
 @media (max-width: 650px) {

@@ -36,22 +36,45 @@ test("queue executes one validated job and returns defensive progress snapshots"
   };
   const queue = new GenerationJobQueue({generator, idFactory: () => "job-1"});
 
-  assert.deepEqual(queue.submit(createGenerationRequest()), {
+  assert.deepEqual(queue.submit(createGenerationRequest({count: 1})), {
     jobId: "job-1",
     status: "queued",
   });
   await waitForStatus(queue, "job-1", "running");
 
-  reportProgress(1, 2);
+  reportProgress(1, 1);
   const progress = queue.get("job-1");
-  assert.deepEqual(progress.progress, {completed: 1, total: 2});
+  assert.deepEqual(progress.progress, {completed: 1, total: 1});
   progress.progress.completed = 99;
-  assert.deepEqual(queue.get("job-1").progress, {completed: 1, total: 2});
+  assert.deepEqual(queue.get("job-1").progress, {completed: 1, total: 1});
 
   completion.resolve(createGenerationResult());
   const succeeded = await waitForStatus(queue, "job-1", "succeeded");
-  assert.deepEqual(succeeded.progress, {completed: 2, total: 2});
+  assert.deepEqual(succeeded.progress, {completed: 1, total: 1});
   assert.equal(succeeded.result.npcs[0].name, "Mara Venn");
+});
+
+test("queue publishes partial success instead of discarding validated NPCs", async () => {
+  const generator = {
+    health: async () => ({status: "ready"}),
+    generate: async () => createGenerationResult(undefined, {
+      requestedCount: 2,
+      failures: [{
+        slot: 2,
+        code: "NPC_OUTPUT_INVALID",
+        message: "NPC slot 2 failed validation.",
+      }],
+    }),
+  };
+  const queue = new GenerationJobQueue({generator, idFactory: () => "job-partial"});
+
+  queue.submit(createGenerationRequest());
+  const succeeded = await waitForStatus(queue, "job-partial", "succeeded");
+
+  assert.equal(succeeded.result.npcs.length, 1);
+  assert.equal(succeeded.result.failures.length, 1);
+  assert.equal(succeeded.activity.code, "job.succeeded-partial");
+  assert.equal(succeeded.activity.level, "warn");
 });
 
 test("cancelling an active job aborts generation and retains cancelled status", async () => {

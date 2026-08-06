@@ -8,13 +8,21 @@ The workflow starts from the Scene the GM is already using. NPCBOT does **not** 
 
 1. Open the Scene that should receive the NPCs. Optionally draw a Foundry Region first if the prompt is specific to an existing area.
 2. As a full GM, open **NPC Generator** from the Tokens scene controls.
-3. Select an existing Region if useful, describe the place and population, choose a count, and adjust the seven generation controls.
-4. Start generation. The dialog polls the local companion and allows the queued or running job to be cancelled.
-5. Review and edit every generated NPC card. Generated text is a draft, not trusted campaign data.
-6. Approve the reviewed cards to create standard dnd5e NPC Actors.
-7. Place the resulting tokens interactively on the current Scene with the canvas cursor.
+3. Select an existing Region if useful, describe the place and population, and choose a count.
+4. Define the output fields the cast needs. Each field has a label and a description for the model; add, rename, or remove fields for the current run.
+5. Define the generation controls. Controls can be 0-100 sliders or free-form text boxes, and each has its own label and model guidance.
+6. Start generation. The dialog polls the local companion and allows the queued or running job to be cancelled.
+7. Review and edit every successfully generated NPC card. Generated text is a draft, not trusted campaign data. If one NPC cannot be repaired, the other validated NPCs remain available and the failed slot is shown explicitly.
+8. Approve the reviewed cards to create standard dnd5e NPC Actors.
+9. Place the resulting tokens interactively on the current Scene with the canvas cursor.
 
-NPC profiles cover names, social roles, appearance, personality, mannerisms, background hooks, and synthetic family relationships. Narrative data is stored in dnd5e biography fields and namespaced module flags so it remains editable without inventing a custom Actor type.
+Names and token labels are stable core fields required by Foundry. Every narrative field is GM-defined. The included defaults cover social role, appearance, personality, mannerisms, background, synthetic family, connections, and GM notes, but they are starter definitions rather than a fixed schema. Narrative data and the exact definition snapshot are stored in the dnd5e biography and namespaced module flags so later default changes do not reinterpret existing Actors.
+
+## Generation architecture
+
+NPCBOT asks the local model for a coherent cast batch, validates each NPC against the GM's field definitions, then sends only invalid NPCs through one targeted repair. A whole-batch repair is used only when the response cannot be parsed as a cast envelope. Valid NPCs are retained when another slot fails.
+
+Small local models have a field-cell budget of 60 core and custom values per model call. Large requests are split into cast batches automatically while prior validated NPCs remain available as relationship context. This keeps response sizes bounded without reverting to one model call per field.
 
 ## Requirements
 
@@ -124,9 +132,11 @@ Configure the module under **Game Settings → Configure Settings → Module Set
 
 The generator performs this same health check when it opens. Its connection card reports whether the companion, bearer token, Ollama service, and configured model are ready. Use **Check Again** after changing any local service or setting.
 
+The Foundry module and companion must use the same generation-contract version. Version `0.2.x` reports a clear mismatch when paired with a `0.1.x` companion. Existing `0.1.x` world slider defaults are migrated into editable control definitions when settings are opened or saved, and already-created Actors are not rewritten. Restart both Foundry and the companion after updating between these versions.
+
 ## Generation visibility and logs
 
-While a job is running, **Live Activity** shows a sanitized timeline for queueing, model requests, compatibility fallback, validation, repair, completion, cancellation, and failure. The timeline includes job and request IDs but never includes the generation prompt or bearer token.
+While a job is running, **Live Activity** shows a sanitized timeline for queueing, cast batches, model requests, compatibility fallback, validation, targeted repair, partial completion, cancellation, and failure. The timeline includes job and request IDs but never includes the generation prompt or bearer token.
 
 The companion writes the same lifecycle events to its terminal with timestamps. Keep that terminal visible during troubleshooting or redirect standard output and error to a local log file:
 
@@ -167,8 +177,8 @@ Binding `NPCBOT_HOST` to `0.0.0.0` exposes the service beyond the local machine.
 - Generation and creation controls are available only to a full GM and require an active viewed Scene.
 - Region selection supplies context and provenance; it does not automatically scatter tokens or manage Region behaviors.
 - NPCBOT creates narrative-first dnd5e NPC Actors. It is not an encounter balancer, rules validator, class builder, spell selector, or replacement for a complete statblock editor.
-- Family trees are synthetic profile relationships. They do not automatically create every relative as an Actor or assert that a relative exists elsewhere in the world.
-- “GM Secret” is stored in Foundry's biography secret markup, not encrypted storage. Document ownership and secret presentation must not be treated as a confidentiality boundary if an Actor is later shared with players.
+- Family trees are synthetic narrative fields. They do not automatically create every relative as an Actor or assert that a relative exists elsewhere in the world.
+- Dynamic narrative fields are placed in the Actor's GM-facing biography and namespaced flags. They are not encrypted; Actor ownership must not be treated as a confidentiality boundary if an Actor is later shared with players.
 - The MVP does not generate portraits or token artwork; Actors use configured Foundry/dnd5e defaults unless edited by the GM.
 - Generated and reviewed NPC fields reject URLs, Foundry enrichers, inline rolls, and macro syntax; add trusted links manually after Actor creation if needed.
 - The companion keeps generation jobs in memory. Restarting it loses queued, running, and unreviewed results.
