@@ -95,6 +95,7 @@
       "title": "NPC Actors Created",
       "placed": "Tokens placed:",
       "generateMore": "Generate More",
+      "placeActor": "Place This Actor",
       "placeAgain": "Place These Actors Again"
     },
     "jobStatus": {

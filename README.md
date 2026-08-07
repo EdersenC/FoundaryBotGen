@@ -14,7 +14,7 @@ The workflow starts from the Scene the GM is already using. NPCBOT does **not** 
 6. Start generation. The dialog polls the local companion and allows the queued or running job to be cancelled.
 7. Review and edit every successfully generated NPC card. Generated text is a draft, not trusted campaign data. If one NPC cannot be repaired, the other validated NPCs remain available and the failed slot is shown explicitly.
 8. Approve the reviewed cards to create standard dnd5e NPC Actors.
-9. Place the resulting tokens interactively on the current Scene with the canvas cursor.
+9. Place the resulting tokens interactively on the current Scene with the canvas cursor. After creation, each Actor in the list also has a **Place This Actor** button for placing that NPC by itself.
 
 Names and token labels are stable core fields required by Foundry. Every narrative field is GM-defined. The included defaults cover social role, appearance, personality, mannerisms, background, synthetic family, connections, and GM notes, but they are starter definitions rather than a fixed schema. Narrative data and the exact definition snapshot are stored in the dnd5e biography and namespaced module flags so later default changes do not reinterpret existing Actors.
 

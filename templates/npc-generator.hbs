@@ -236,8 +236,16 @@
     <section class="npcbot-created">
       <i class="fa-solid fa-circle-check"></i>
       <h2>{{localize "foundry-npcbot.created.title"}}</h2>
-      <ul>
-        {{#each createdActors}}<li>{{name}}</li>{{/each}}
+      <ul class="npcbot-created__list">
+        {{#each createdActors}}
+          <li class="npcbot-created__actor">
+            <span>{{name}}</span>
+            <button type="button" class="npcbot-secondary" data-action="placeActor" data-actor-id="{{id}}" {{#if ../isBusy}}disabled{{/if}}>
+              <i class="fa-solid fa-location-dot"></i>
+              {{localize "foundry-npcbot.created.placeActor"}}
+            </button>
+          </li>
+        {{/each}}
       </ul>
       <p>{{localize "foundry-npcbot.created.placed"}} {{placedCount}}</p>
       <footer class="npcbot-actions">

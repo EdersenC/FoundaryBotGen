@@ -52,6 +52,7 @@ export class NpcGeneratorApp extends HandlebarsApplicationMixin(ApplicationV2) {
       cancel: this.#onCancel,
       approve: this.#onApprove,
       place: this.#onPlace,
+      placeActor: this.#onPlaceActor,
       restart: this.#onRestart,
       addField: this.#onAddField,
       removeField: this.#onRemoveField,
@@ -201,6 +202,10 @@ export class NpcGeneratorApp extends HandlebarsApplicationMixin(ApplicationV2) {
 
   static async #onPlace() {
     await this.#runAction(() => this.#placeCreatedActors());
+  }
+
+  static async #onPlaceActor(event, target) {
+    await this.#runAction(() => this.#placeCreatedActor(readActionActorId(event, target)));
   }
 
   static async #onRestart() {
@@ -446,9 +451,20 @@ export class NpcGeneratorApp extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   async #placeCreatedActors() {
+    await this.#placeActors(this.#createdActors);
+  }
+
+  async #placeCreatedActor(actorId) {
+    if (!actorId) return;
+    const actor = this.#createdActors.find((candidate) => candidate.id === actorId);
+    if (!actor) return;
+    await this.#placeActors([actor]);
+  }
+
+  async #placeActors(actors) {
     requireNpcMutationAccess(this.#sceneId);
     const placed = await placeNpcActors({
-      actors: this.#createdActors,
+      actors,
       sceneId: this.#sceneId,
     });
     this.#placedCount += placed.length;
@@ -525,6 +541,13 @@ function readActionIndex(event, target) {
   const value = target?.dataset?.index ?? event?.currentTarget?.dataset?.index;
   const index = Number(value);
   return Number.isInteger(index) && index >= 0 ? index : null;
+}
+
+function readActionActorId(event, target) {
+  const value = target?.dataset?.actorId ?? event?.currentTarget?.dataset?.actorId;
+  if (typeof value !== "string") return null;
+  const actorId = value.trim();
+  return actorId || null;
 }
 
 function normalizeProgress(progress, fallbackTotal) {

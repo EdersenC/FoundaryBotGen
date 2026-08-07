@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import {readFile} from "node:fs/promises";
 import test from "node:test";
 
 test("Foundry entrypoint registers and opens a Scene-bound generator", async () => {
@@ -94,12 +95,18 @@ test("Foundry entrypoint registers and opens a Scene-bound generator", async () 
   };
 
   const module = await import(`../scripts/main.mjs?smoke=${Date.now()}`);
+  const {NpcGeneratorApp} = await import(`../scripts/apps/npc-generator-app.mjs?smoke=${Date.now()}`);
   assert.equal(typeof onceHooks.get("init"), "function");
   onceHooks.get("init")();
 
   assert.equal(settings.size, 3);
   assert.equal(menus.size, 1);
   assert.equal(typeof hooks.get("getSceneControlButtons"), "function");
+  assert.equal(typeof NpcGeneratorApp.DEFAULT_OPTIONS.actions.placeActor, "function");
+
+  const template = await readFile(new URL("../templates/npc-generator.hbs", import.meta.url), "utf8");
+  assert.match(template, /data-action="placeActor"/);
+  assert.match(template, /data-actor-id="{{id}}"/);
 
   const controls = {tokens: {tools: {select: {name: "select"}}}};
   hooks.get("getSceneControlButtons")(controls);
