@@ -245,6 +245,31 @@
   width: min(30rem, 100%);
 }
 
+.npcbot-created__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: min(30rem, 100%);
+  margin: 0;
+  padding: 0;
+  text-align: left;
+  list-style: none;
+}
+
+.npcbot-created__actor {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border-light-primary);
+  border-radius: 0.4rem;
+}
+
+.npcbot-created__actor span {
+  overflow-wrap: anywhere;
+}
+
 .npcbot-review__list {
   display: flex;
   flex-direction: column;
@@ -313,5 +338,10 @@
 
   .npcbot-activity__event {
     grid-template-columns: 1fr;
+  }
+
+  .npcbot-created__actor {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
